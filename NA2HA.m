@@ -1,26 +1,26 @@
-function [H] = NA2HA(N, e, tol)
-    if e < 1.6
-        if (-pi < N && N < 0) || (N > pi)
-            H = N-e;
+function [HA] = NA2HA(NA, ECC, tol)
+    if ECC < 1.6
+        if (-pi < NA && NA < 0) || (NA > pi)
+            HA = NA-ECC;
         else
-            H = N+e;
+            HA = NA+ECC;
         end
     else
-        if e < 3.6 && abs(N) > pi
-            H = N-sign(N)*e;
+        if ECC < 3.6 && abs(NA) > pi
+            HA = NA-sign(NA)*ECC;
         else
-            H = N/(e-1);
+            HA = NA/(ECC-1);
         end
     end
     
     while 1 %do-while
-        H_new = H + (N+H-e*sinh(H))/(e*cosh(H) - 1);
+        H_new = HA + (NA+HA-ECC*sinh(HA))/(ECC*cosh(HA) - 1);
 
-        if abs(H - H_new) < tol
-            H = H_new;
+        if abs(HA - H_new) < tol
+            HA = H_new;
             break;
         else
-            H = H_new;
+            HA = H_new;
         end
     end
 end

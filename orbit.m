@@ -1,6 +1,5 @@
 classdef orbit
-    %ORBIT Summary of this class goes here
-    %   Detailed explanation goes here
+    %ORBIT Representation of a spacecraft on a conic orbit
     
     properties % Distances in km, Angles in rad, Time in s
         Body        % Primary body, as a Capitalized string
@@ -48,6 +47,11 @@ classdef orbit
         function obj = orbit(varargin)
             %ORBIT Construct an instance of this class, first term should
             %be a string indentifying the input arguments
+            %orbit('COE', Body,  SMA, ECC, AOP, INC, RAAN, TA)
+            %orbit('RARP', Body, RA, RP, AOP, INC, RAAN, TA)
+            %orbit('RV', Body, R_XYZ, V_XYZ)
+            %orbit('RRP', Body, R1_XYZ, R2_XYZ, P) not implemented
+            %orbit('RRT', Body, R1_XYZ, R2_XYZ, T21) not implemented
             if strcmp(varargin{1},'COE') % Keplerian Orbital Elements
                 obj.Body = varargin{2};
                 obj.SMA = varargin{3};
@@ -73,7 +77,7 @@ classdef orbit
             if strcmp(varargin{1}, 'RV') % Position and velocity
                 obj.Body = varargin{2};
                 [obj.SMA, obj.ECC, obj.AOP, obj.INC, obj.RAAN, obj.TA] =...
-                    RV2COE(Body_Grav_param(obj.Body), varargin{3}, varargin{4});
+                    RV2COE(Body_Grav_Param(obj.Body), varargin{3}, varargin{4});
             end
 
             if strcmp(varargin{1}, 'RRP') % Two Positions and P
@@ -86,47 +90,75 @@ classdef orbit
         end
 
         function obj = propagate_TA(obj, dTA)
+            if (dTA < 0 && obj.Type ~= 0)
+                warning('Backwards propagation occurred on a non-elliptical orbit')
+            end
             obj.TA = obj.TA + dTA;
             obj = obj.update_properties();
         end
 
         function obj = propagate_toTA(obj, TA)
-            if TA > 2*pi || (TA < -pi)
-                error('Invalid New TA')
+            if (obj.Type == 0) && (TA > 2*pi || TA < 0)
+                error('Invalid New TA for elliptical orbit. Should be [0,2*pi]')
             end
-            if obj.TA > TA && obj.ECC < 1
+            if (obj.Type == 1) && (TA > pi || TA < -pi)
+                error('Invalid New TA for parabolic orbit. Should be [-pi,pi]')
+            end
+            %TODO error case for hyperbolic orbit (use ta inf)
+
+            % Wrap TA for elliptical orbits
+            if obj.ECC < 1 && obj.TA > TA
                 TA = TA + 2*pi;
-            elseif obj.TA > TA
-                error('New TA must be greater than current TA for non-elliptical orbits')
             end
 
             dTA = TA - obj.TA;
             obj = obj.propagate_TA(dTA);
         end
 
+        function obj = propagate_toR(obj, R, Ascending)
+            %propagate_toR(R, Ascending)
+            % Propagate the orbit a given Radius
+            % R, radius
+            % Ascending, logical true if ascending
+            if ~isnan(obj.RA) && R > obj.RA
+                error('Radius is too high, it is never reached')
+            end
+            if (R < obj.RP)
+                error('Radius is too low, it is never reached')
+            end
+
+            TA = acos((1/obj.ECC)*(obj.SLR/R - 1));
+            if (~Ascending)
+                TA = 2*pi - TA;
+            end
+            dTA = TA - obj.TA;
+            obj = obj.propagate_TA(dTA);
+
+        end
+
         function obj = propagate_Time(obj, dt)
             obj.XA = obj.XA + dt*obj.MM;
             if obj.Type == 0 % Ellipse
                 obj.MA = obj.XA;
-                obj.EA = MA2EA(obj.MA, obj.ECC, 1e-12);
+                obj.EA = AnomalyConvert.MA2EA(obj.MA, obj.ECC, 1e-12);
                 obj.TA = mod(2*atan(sqrt((1+obj.ECC)/(1-obj.ECC))*tan(obj.EA/2)), 2*pi);
             elseif obj.Type == 1 % Parabola
                 obj.OA = obj.XA;
-                obj.BA = OA2BA(obj.OA);
+                obj.BA = AnomalyConvert.OA2BA(obj.OA);
                 obj.TA = 2*atan(obj.BA);
             else % Hyperbola
                 obj.NA = obj.XA;
-                obj.HA = NA2HA(obj.NA, obj.ECC, 1e-12);
+                obj.HA = AnomalyConvert.NA2HA(obj.NA, obj.ECC, 1e-12);
                 obj.TA = mod(2*atan(sqrt((1+obj.ECC)/(1-obj.ECC))*tanh(obj.HA/2)), 2*pi);
             end
 
             obj = obj.update_properties();
         end
 
-        function obj = maneuver(obj, dV, alpha)
+        function obj = maneuver(obj, dV, alpha, beta)
             % Maneuver in orbit plane, alpha negative toward body. 
             % Todo add other angle
-            dV_RTH = [dV*sin(obj.FPA - alpha); dV*cos(obj.FPA - alpha); 0];
+            dV_RTH = [dV*sin(obj.FPA + alpha); dV*cos(obj.FPA + alpha); 0];
             dV_XYZ = rth2xyz(dV_RTH, obj.AOL, obj.INC, obj.RAAN);
 
             obj = maneuver_XYZ(obj, dV_XYZ);
@@ -137,7 +169,7 @@ classdef orbit
                 error('dV must be have length 3')
             end
             
-            obj = orbit('RV', obj.R_XYZ, obj.V_XYZ + dV_XYZ);
+            obj = orbit('RV', obj.Body, obj.R_XYZ, obj.V_XYZ + dV_XYZ);
         end
 
         function obj = maneuver_VNB(obj, dV_VNB)
@@ -207,6 +239,10 @@ classdef orbit
                 obj.RP = obj.SMA*(1-obj.ECC);
                 obj.RA = NaN;
             end
+
+            if obj.RP < Body_Radius(obj.Body)
+                warning('Orbit intersects body surface.')
+            end
             
             % Period      % Period
             obj.Period = 2*pi/obj.MM;
@@ -248,11 +284,15 @@ classdef orbit
             obj.R_EPH = rth2eph(obj.R_RTH, obj.TA);
             % V_EPH       % Velcotiy vector in fixed orbit frame
             obj.V_EPH = rth2eph(obj.V_RTH, obj.TA);
-
+            
             % R_XYZ       % Position vector in inertial frame
             obj.R_XYZ = rth2xyz(obj.R_RTH, obj.AOL, obj.INC, obj.RAAN);
             % V_XYZ       % Velocity vector in inertial frame
             obj.V_XYZ = rth2xyz(obj.V_RTH, obj.AOL, obj.INC, obj.RAAN);
+            if isnan(obj.RAAN) % in an equatorial orbit
+                obj.R_XYZ = rth2xyz(obj.R_RTH, obj.AOL, obj.INC, 0);
+                obj.V_XYZ = rth2xyz(obj.V_RTH, obj.AOL, obj.INC, 0);
+            end
 
             % H_XYZ       % Angular Momentum Vector in inertial frame
             obj.H_XYZ = cross(obj.R_XYZ, obj.V_XYZ);
@@ -321,7 +361,7 @@ classdef orbit
             r_e_vec = r_mag_vec.*cos(ta_vec);
             r_p_vec = r_mag_vec.*sin(ta_vec);
 
-            r2_mag_vec = orbit2.SLR./(1+orbit2.ECC*cos(ta_vec + dAOP));
+            r2_mag_vec = orbit2.SLR./(1+orbit2.ECC*cos(ta_vec - dAOP));
             r2_e_vec = r2_mag_vec.*cos(ta_vec);
             r2_p_vec = r2_mag_vec.*sin(ta_vec);
 
@@ -341,7 +381,7 @@ classdef orbit
             scatter(-obj.SMA*obj.ECC, 0, 'black', '+') %center
             if (draw_apsides)
                 plot([-obj.RA,obj.RP], [0,0], 'black--')
-                plot([-orbit2.RA,orbit2.RP]*cos(-dAOP), [-orbit2.RA,orbit2.RP]*sin(-dAOP), 'black--')
+                plot([-orbit2.RA,orbit2.RP]*cos(dAOP), [-orbit2.RA,orbit2.RP]*sin(dAOP), 'black--')
             end
             if (draw_pos)
                 scatter(obj.R_EPH(1), obj.R_EPH(2), 'black')
@@ -350,14 +390,8 @@ classdef orbit
                 % TODO unit vectors, vectors, and angles
                 plot([0,obj.R_EPH(1)], [0,obj.R_EPH(2)], 'black')
             end
-            if orbit2.SMA > obj.SMA
-                ylim([-1.1, 1.1]*orbit2.SMA*(1 + sin(dAOP)/2))
-            else
-                ylim([-1.1, 1.1]*obj.SMA*(1 + sin(dAOP)/2))
-            end
 
-            ylim([min(min(r_p_vec), min(r2_p_vec)) - 0.1*max(obj.SMA, orbit2.SMA), ...
-                  max(max(r_p_vec), max(r2_p_vec)) + 0.1*max(obj.SMA, orbit2.SMA)])
+            ylim([-1.1, 1.1]*obj.SMA)
 
             if exist('legend_labels', 'var')
                 legend(legend_labels)

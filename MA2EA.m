@@ -1,17 +1,17 @@
-function [E] = MA2EA(M, e, tol)
-    if (-pi < M && M < 0) || (M > pi)
-        E = M-e;
+function [EA] = MA2EA(MA, ECC, tol)
+    if (-pi < MA && MA < 0) || (MA > pi)
+        EA = MA-ECC;
     else
-        E = M+e;
+        EA = MA+ECC;
     end
     
     while 1 
-        E_new = E + (M-E+e*sin(E))/(1-e*cos(E));
-        if abs(E - E_new) < tol
-            E = E_new;
+        E_new = EA + (MA-EA+ECC*sin(EA))/(1-ECC*cos(EA));
+        if abs(EA - E_new) < tol
+            EA = E_new;
             break;
         else
-            E = E_new;
+            EA = E_new;
         end
     end
 end
