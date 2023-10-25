@@ -55,6 +55,15 @@ classdef maneuver
             dV_RTH = Frame.xyz2rth(obj.dV_XYZ, orbit.AOL, orbit.INC, orbit.RAAN);
             dV_BVN = Frame.rth2bvn(dV_RTH, orbit.FPA);
         end
+
+        function obj = reverse(obj)
+            obj.dV_XYZ = -obj.dV_XYZ;
+        end
+
+        function obj = combine(obj, maneuver2)
+            obj.dV_XYZ = obj.dV_XYZ + maneuver2.dV_XYZ;
+            obj.dV = norm(obj.dV_XYZ);
+        end
     end
 end
 
