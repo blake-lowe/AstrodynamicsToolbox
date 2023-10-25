@@ -65,9 +65,7 @@ classdef orbit
                 obj.INC = varargin{6};
                 obj.RAAN = varargin{7};
                 obj.TA = varargin{8};
-            end
-
-            if strcmp(varargin{1},'RARP') % Apoapsis and Periapsis
+            elseif strcmp(varargin{1},'RARP') % Apoapsis and Periapsis
                 RA = varargin{3};
                 RP = varargin{4};
                 obj.SMA = (RA + RP)/2;
@@ -76,16 +74,14 @@ classdef orbit
                 obj.INC = varargin{6};
                 obj.RAAN = varargin{7};
                 obj.TA = varargin{8};
-            end
-
-            if strcmp(varargin{1}, 'RV') % Position and velocity
+            elseif strcmp(varargin{1}, 'RV') % Position and velocity
                 [obj.SMA, obj.ECC, obj.AOP, obj.INC, obj.RAAN, obj.TA] =...
                     RV2COE(obj.Body.Mu, varargin{3}, varargin{4});
-            end
-
-            if strcmp(varargin{1}, 'RRP') % Two Positions and P
+            elseif strcmp(varargin{1}, 'RRP') % Two Positions and P
                 % TODO using f and g functions to get v1 then RV2COE(r1,v1)
 
+            else
+                error('Invalid input mode specified')
             end
 
             obj = obj.update_properties();
@@ -99,7 +95,11 @@ classdef orbit
             TP_before = obj.TP;
             obj = obj.update_properties();
             TP_after = obj.TP;
-            propagationTime = mod(TP_after-TP_before, obj.Period)
+            if obj.Type == 0
+                propagationTime = mod(TP_after-TP_before, obj.Period)
+            else
+                propagationTime = TP_after-TP_before
+            end
         end
 
         function obj = propagate_toTA(obj, TA)
@@ -141,12 +141,37 @@ classdef orbit
 
         end
 
-        function obj = propagate_EA(object, dEA)
-            %todo use f and g funcs and then RV constructor
+        function obj = propagate_EA(obj, dEA)
+            % Calculate dt
+            M0 = obj.MA;
+            M1 = Anomaly.EA2MA(obj.EA + dEA, obj.ECC);
+            dt = (M1 - M0)/obj.MM;
+
+            % Use f and g functions to get new R,V
+            [R1_XYZ, V1_XYZ] = KEPLER_FGEA(obj.Body.Mu, obj.SMA, dt, dEA, obj.R_XYZ, obj.V_XYZ);
+
+            % Construct the new orbit RV constructor
+            TP_before = obj.TP;
+            obj = orbit('RV', obj.Body, R1_XYZ, V1_XYZ);
+            TP_after = obj.TP;
+            propagationTime = mod(TP_after-TP_before, obj.Period)
         end
 
-        function obj = propagate_toEA(object, EA)
-            %todo like propagate_toTA
+        function obj = propagate_toEA(obj, EA)
+            if (obj.Type == 0) && (EA > 2*pi || EA < 0)
+                error('Invalid New EA for elliptical orbit. Should be [0,2*pi]')
+            end
+            if (obj.Type ~= 0)
+                error('Cannot propagate by EA for non-elliptical orbit')
+            end
+
+            % Wrap TA for elliptical orbits
+            if obj.EA > EA
+                EA = EA + 2*pi;
+            end
+
+            dEA = EA - obj.EA;
+            obj = obj.propagate_EA(dEA);
         end
 
 
@@ -169,24 +194,8 @@ classdef orbit
             obj = obj.update_properties();
         end
 
-        function obj = maneuver_alpha(obj, dV, alpha)
-            % Maneuver in orbit plane, alpha negative toward body. 
-            dV_RTH = [dV*sin(obj.FPA + alpha); dV*cos(obj.FPA + alpha); 0];
-            dV_XYZ = Frame.rth2xyz(dV_RTH, obj.AOL, obj.INC, obj.RAAN);
-            obj = maneuver_XYZ(obj, dV_XYZ);
-        end
-
-        function obj = maneuver_phi_beta(obj, dV, phi, beta)
-            % Maneuver with angles given relative to RTH frame
-            dV_RTH = dV*[cos(beta)*sin(phi); cos(beta)*cos(phi); sin(beta)];
-            dV_XYZ = Frame.rth2xyz(dV_RTH, obj.AOL, obj.INC, obj.RAAN);
-            obj = maneuver_XYZ(obj, dV_XYZ);
-        end
-
-        function obj = maneuver_alpha_beta(obj, dV, alpha, beta)
-            % Maneuver with angles given relative to BVN frame
-            dV_BVN = dV*[cos(beta)*sin(alpha); cos(beta)*cos(alpha); sin(beta)];
-            obj = maneuver_BVN(obj, dV_BVN);
+        function obj = maneuver_execute(obj, maneuver1)
+            obj = obj.maneuver_XYZ(maneuver1.dV_XYZ);
         end
 
         function obj = maneuver_XYZ(obj, dV_XYZ)
@@ -195,13 +204,6 @@ classdef orbit
             end
             dV = norm(dV_XYZ)
             obj = orbit('RV', obj.Body, obj.R_XYZ, obj.V_XYZ + dV_XYZ);
-        end
-
-        function obj = maneuver_BVN(obj, dV_BVN)
-            %todo
-            dV_RTH = Frame.bvn2rth(dV_BVN, obj.FPA);
-            dV_XYZ = Frame.rth2xyz(dV_RTH, obj.AOL, obj.INC, obj.RAAN);
-            obj = maneuver_XYZ(obj, dV_XYZ);
         end
 
         function obj = update_properties(obj)
@@ -424,6 +426,9 @@ classdef orbit
             end
             if (draw_pos)
                 scatter(obj.R_EPH(1), obj.R_EPH(2), 'black')
+                R2_XYZ = Frame.rth2xyz([orbit2.R;0;0], orbit2.AOL, orbit2.INC, orbit2.RAAN);
+                R2_EPH1 = Frame.xyz2eph(R2_XYZ, obj.AOP, obj.INC, obj.RAAN);
+                scatter(R2_EPH1(1), R2_EPH1(2), 'black')
             end
             if (draw_vecs)
                 % TODO unit vectors, vectors, and angles
@@ -561,6 +566,8 @@ classdef orbit
 
             if (draw_pos)
                 scatter3(obj.R_XYZ(1), obj.R_XYZ(2), obj.R_XYZ(3), 'black')
+                R2_XYZ = Frame.rth2xyz([orbit2.R;0;0], orbit2.AOL, orbit2.INC, orbit2.RAAN);
+                scatter3(R2_XYZ(1), R2_XYZ(2), R2_XYZ, 'black')
             end
 
             if (draw_apsides)

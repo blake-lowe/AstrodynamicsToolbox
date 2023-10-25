@@ -71,9 +71,9 @@ classdef Frame
 
         function [out] = xyz2eph(in, AOP, INC, RAAN)
             % in, column vector in inertial frame to be rotated into orbit-fixed frame
-            % theta, argument of latitude (argument of periapsis + true anomaly
-            % i, inclination
-            % Omega, right ascension of the ascending node
+            % AOP, argument of latitude (argument of periapsis + true anomaly
+            % INC, inclination
+            % RAAN, right ascension of the ascending node
             R = [cos(RAAN)*cos(AOP) - sin(RAAN)*cos(INC)*sin(AOP), sin(RAAN)*cos(AOP) + cos(RAAN)*cos(INC)*sin(AOP), sin(INC)*sin(AOP);
                 - cos(RAAN)*sin(AOP) - sin(RAAN)*cos(INC)*cos(AOP), cos(RAAN)*cos(INC)*cos(AOP) - sin(RAAN)*sin(AOP), cos(AOP)*sin(INC);
                 sin(RAAN)*sin(INC), -cos(RAAN)*sin(INC), cos(INC)];
@@ -82,9 +82,9 @@ classdef Frame
 
         function [out] = xyz2rth(in, AOL, INC, RAAN)
             % in, column vector in inertial frame to be rotated into orbit-fixed frame
-            % theta, argument of latitude (argument of periapsis + true anomaly
-            % i, inclination
-            % Omega, right ascension of the ascending node
+            % AOL, argument of latitude (argument of periapsis + true anomaly
+            % INC, inclination
+            % RAAN, right ascension of the ascending node
             R = [cos(RAAN)*cos(AOL) - sin(RAAN)*cos(INC)*sin(AOL), sin(RAAN)*cos(AOL) + cos(RAAN)*cos(INC)*sin(AOL), sin(INC)*sin(AOL);
                 - cos(RAAN)*sin(AOL) - sin(RAAN)*cos(INC)*cos(AOL), cos(RAAN)*cos(INC)*cos(AOL) - sin(RAAN)*sin(AOL), cos(AOL)*sin(INC);
                 sin(RAAN)*sin(INC), -cos(RAAN)*sin(INC), cos(INC)];
