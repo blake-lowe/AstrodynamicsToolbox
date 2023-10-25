@@ -374,7 +374,7 @@ classdef orbit
                 % TODO unit vectors, vectors, and angles
                 plot([0,obj.R_EPH(1)], [0,obj.R_EPH(2)], 'black')
             end
-            ylim([min(r_p_vec) - 0.1*obj.SMA, max(r_p_vec) + 0.1*obj.SMA])
+            %ylim([min(r_p_vec) - 0.1*obj.SMA, max(r_p_vec) + 0.1*obj.SMA])
 
             if exist('legend_labels', 'var')
                 legend(legend_labels)
@@ -384,8 +384,6 @@ classdef orbit
         end
 
         function plot_EPH_overlay(obj, n, orbit2, draw_body, draw_pos, draw_vecs, draw_apsides, legend_labels)
-            dAOP = orbit2.AOP - obj.AOP;
-
             ta_vec = linspace(0, 2*pi, n);
             r_mag_vec = obj.SLR./(1+obj.ECC*cos(ta_vec));
             r_e_vec = r_mag_vec.*cos(ta_vec);
@@ -433,6 +431,9 @@ classdef orbit
             if (draw_vecs)
                 % TODO unit vectors, vectors, and angles
                 plot([0,obj.R_EPH(1)], [0,obj.R_EPH(2)], 'black')
+                R2_XYZ = Frame.rth2xyz([orbit2.R;0;0], orbit2.AOL, orbit2.INC, orbit2.RAAN);
+                R2_EPH1 = Frame.xyz2eph(R2_XYZ, obj.AOP, obj.INC, obj.RAAN);
+                plot([0,R2_EPH1(1)], [0,R2_EPH1(2)], 'black')
             end
 
             minx = min([r_e_vec, r2_e_vec]);
@@ -484,7 +485,7 @@ classdef orbit
             end
 
             if (draw_pos)
-                scatter3(obj.R_XYZ(1), obj.R_XYZ(2), obj.R_XYZ(3), 'black')
+                scatter3(obj.R_XYZ(1), obj.R_XYZ(2), obj.R_XYZ(3), 'black', 'filled')
             end
 
             if (draw_apsides)
@@ -565,9 +566,9 @@ classdef orbit
             end
 
             if (draw_pos)
-                scatter3(obj.R_XYZ(1), obj.R_XYZ(2), obj.R_XYZ(3), 'black')
+                scatter3(obj.R_XYZ(1), obj.R_XYZ(2), obj.R_XYZ(3), 'black', 'filled')
                 R2_XYZ = Frame.rth2xyz([orbit2.R;0;0], orbit2.AOL, orbit2.INC, orbit2.RAAN);
-                scatter3(R2_XYZ(1), R2_XYZ(2), R2_XYZ, 'black')
+                scatter3(R2_XYZ(1), R2_XYZ(2), R2_XYZ(3), 'black','filled')
             end
 
             if (draw_apsides)

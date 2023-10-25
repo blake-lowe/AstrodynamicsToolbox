@@ -36,6 +36,9 @@ classdef Frame
             % AOL, argument of latitude (argument of periapsis + true anomaly)
             % INC, inclination
             % RAAN, right ascension of the ascending node
+            if isnan(RAAN)
+                RAAN = 0;
+            end
             R = transpose([cos(RAAN)*cos(AOL) - sin(RAAN)*cos(INC)*sin(AOL), sin(RAAN)*cos(AOL) + cos(RAAN)*cos(INC)*sin(AOL), sin(INC)*sin(AOL);
                 - cos(RAAN)*sin(AOL) - sin(RAAN)*cos(INC)*cos(AOL), cos(RAAN)*cos(INC)*cos(AOL) - sin(RAAN)*sin(AOL), cos(AOL)*sin(INC);
                 sin(RAAN)*sin(INC), -cos(RAAN)*sin(INC), cos(INC)]);
@@ -63,6 +66,9 @@ classdef Frame
             % AOP, argument of periapsis
             % INC, inclination
             % RAAN, right ascension of the ascending node
+            if isnan(RAAN)
+                RAAN = 0;
+            end
             R = transpose([cos(RAAN)*cos(AOP) - sin(RAAN)*cos(INC)*sin(AOP), sin(RAAN)*cos(AOP) + cos(RAAN)*cos(INC)*sin(AOP), sin(INC)*sin(AOP);
                 - cos(RAAN)*sin(AOP) - sin(RAAN)*cos(INC)*cos(AOP), cos(RAAN)*cos(INC)*cos(AOP) - sin(RAAN)*sin(AOP), cos(AOP)*sin(INC);
                 sin(RAAN)*sin(INC), -cos(RAAN)*sin(INC), cos(INC)]);
@@ -74,6 +80,9 @@ classdef Frame
             % AOP, argument of latitude (argument of periapsis + true anomaly
             % INC, inclination
             % RAAN, right ascension of the ascending node
+            if isnan(RAAN)
+                RAAN = 0;
+            end
             R = [cos(RAAN)*cos(AOP) - sin(RAAN)*cos(INC)*sin(AOP), sin(RAAN)*cos(AOP) + cos(RAAN)*cos(INC)*sin(AOP), sin(INC)*sin(AOP);
                 - cos(RAAN)*sin(AOP) - sin(RAAN)*cos(INC)*cos(AOP), cos(RAAN)*cos(INC)*cos(AOP) - sin(RAAN)*sin(AOP), cos(AOP)*sin(INC);
                 sin(RAAN)*sin(INC), -cos(RAAN)*sin(INC), cos(INC)];
@@ -85,6 +94,9 @@ classdef Frame
             % AOL, argument of latitude (argument of periapsis + true anomaly
             % INC, inclination
             % RAAN, right ascension of the ascending node
+            if isnan(RAAN)
+                RAAN = 0;
+            end
             R = [cos(RAAN)*cos(AOL) - sin(RAAN)*cos(INC)*sin(AOL), sin(RAAN)*cos(AOL) + cos(RAAN)*cos(INC)*sin(AOL), sin(INC)*sin(AOL);
                 - cos(RAAN)*sin(AOL) - sin(RAAN)*cos(INC)*cos(AOL), cos(RAAN)*cos(INC)*cos(AOL) - sin(RAAN)*sin(AOL), cos(AOL)*sin(INC);
                 sin(RAAN)*sin(INC), -cos(RAAN)*sin(INC), cos(INC)];
