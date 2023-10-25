@@ -2,7 +2,7 @@ classdef orbit
     %ORBIT Representation of a spacecraft on a conic orbit
     
     properties % Distances in km, Angles in rad, Time in s
-        Body        % Primary body, as a Capitalized string
+        Body        % Primary body, as a body class
         MU          % Gravitational parameter of Body
         SMA         % Semi-major axis
         ECC         % Eccentricity
@@ -47,13 +47,18 @@ classdef orbit
         function obj = orbit(varargin)
             %ORBIT Construct an instance of this class, first term should
             %be a string indentifying the input arguments
-            %orbit('COE', Body,  SMA, ECC, AOP, INC, RAAN, TA)
+            %orbit('COE', Body, SMA, ECC, AOP, INC, RAAN, TA)
             %orbit('RARP', Body, RA, RP, AOP, INC, RAAN, TA)
             %orbit('RV', Body, R_XYZ, V_XYZ)
             %orbit('RRP', Body, R1_XYZ, R2_XYZ, P) not implemented
             %orbit('RRT', Body, R1_XYZ, R2_XYZ, T21) not implemented
-            if strcmp(varargin{1},'COE') % Keplerian Orbital Elements
+            if ischar(varargin{2})
+                obj.Body = body(varargin{2});
+            else
                 obj.Body = varargin{2};
+            end
+
+            if strcmp(varargin{1},'COE') % Keplerian Orbital Elements
                 obj.SMA = varargin{3};
                 obj.ECC = varargin{4};
                 obj.AOP = varargin{5};
@@ -63,7 +68,6 @@ classdef orbit
             end
 
             if strcmp(varargin{1},'RARP') % Apoapsis and Periapsis
-                obj.Body = varargin{2};
                 RA = varargin{3};
                 RP = varargin{4};
                 obj.SMA = (RA + RP)/2;
@@ -75,13 +79,11 @@ classdef orbit
             end
 
             if strcmp(varargin{1}, 'RV') % Position and velocity
-                obj.Body = varargin{2};
                 [obj.SMA, obj.ECC, obj.AOP, obj.INC, obj.RAAN, obj.TA] =...
-                    RV2COE(Body_Grav_Param(obj.Body), varargin{3}, varargin{4});
+                    RV2COE(obj.Body.Mu, varargin{3}, varargin{4});
             end
 
             if strcmp(varargin{1}, 'RRP') % Two Positions and P
-                obj.Body = varargin{2};
                 % TODO using f and g functions to get v1 then RV2COE(r1,v1)
 
             end
@@ -94,7 +96,10 @@ classdef orbit
                 warning('Backwards propagation occurred on a non-elliptical orbit')
             end
             obj.TA = obj.TA + dTA;
+            TP_before = obj.TP;
             obj = obj.update_properties();
+            TP_after = obj.TP;
+            propagationTime = mod(TP_after-TP_before, obj.Period)
         end
 
         function obj = propagate_toTA(obj, TA)
@@ -136,51 +141,74 @@ classdef orbit
 
         end
 
+        function obj = propagate_EA(object, dEA)
+            %todo use f and g funcs and then RV constructor
+        end
+
+        function obj = propagate_toEA(object, EA)
+            %todo like propagate_toTA
+        end
+
+
         function obj = propagate_Time(obj, dt)
             obj.XA = obj.XA + dt*obj.MM;
             if obj.Type == 0 % Ellipse
                 obj.MA = obj.XA;
-                obj.EA = AnomalyConvert.MA2EA(obj.MA, obj.ECC, 1e-12);
+                obj.EA = Anomaly.MA2EA(obj.MA, obj.ECC, 1e-12);
                 obj.TA = mod(2*atan(sqrt((1+obj.ECC)/(1-obj.ECC))*tan(obj.EA/2)), 2*pi);
             elseif obj.Type == 1 % Parabola
                 obj.OA = obj.XA;
-                obj.BA = AnomalyConvert.OA2BA(obj.OA);
+                obj.BA = Anomaly.OA2BA(obj.OA);
                 obj.TA = 2*atan(obj.BA);
             else % Hyperbola
                 obj.NA = obj.XA;
-                obj.HA = AnomalyConvert.NA2HA(obj.NA, obj.ECC, 1e-12);
+                obj.HA = Anomaly.NA2HA(obj.NA, obj.ECC, 1e-12);
                 obj.TA = mod(2*atan(sqrt((1+obj.ECC)/(1-obj.ECC))*tanh(obj.HA/2)), 2*pi);
             end
 
             obj = obj.update_properties();
         end
 
-        function obj = maneuver(obj, dV, alpha, beta)
+        function obj = maneuver_alpha(obj, dV, alpha)
             % Maneuver in orbit plane, alpha negative toward body. 
-            % Todo add other angle
             dV_RTH = [dV*sin(obj.FPA + alpha); dV*cos(obj.FPA + alpha); 0];
-            dV_XYZ = rth2xyz(dV_RTH, obj.AOL, obj.INC, obj.RAAN);
-
+            dV_XYZ = Frame.rth2xyz(dV_RTH, obj.AOL, obj.INC, obj.RAAN);
             obj = maneuver_XYZ(obj, dV_XYZ);
+        end
+
+        function obj = maneuver_phi_beta(obj, dV, phi, beta)
+            % Maneuver with angles given relative to RTH frame
+            dV_RTH = dV*[cos(beta)*sin(phi); cos(beta)*cos(phi); sin(beta)];
+            dV_XYZ = Frame.rth2xyz(dV_RTH, obj.AOL, obj.INC, obj.RAAN);
+            obj = maneuver_XYZ(obj, dV_XYZ);
+        end
+
+        function obj = maneuver_alpha_beta(obj, dV, alpha, beta)
+            % Maneuver with angles given relative to BVN frame
+            dV_BVN = dV*[cos(beta)*sin(alpha); cos(beta)*cos(alpha); sin(beta)];
+            obj = maneuver_BVN(obj, dV_BVN);
         end
 
         function obj = maneuver_XYZ(obj, dV_XYZ)
             if length(dV_XYZ) ~= 3
-                error('dV must be have length 3')
+                error('dV must have length = 3')
             end
-            
+            dV = norm(dV_XYZ)
             obj = orbit('RV', obj.Body, obj.R_XYZ, obj.V_XYZ + dV_XYZ);
         end
 
-        function obj = maneuver_VNB(obj, dV_VNB)
+        function obj = maneuver_BVN(obj, dV_BVN)
             %todo
+            dV_RTH = Frame.bvn2rth(dV_BVN, obj.FPA);
+            dV_XYZ = Frame.rth2xyz(dV_RTH, obj.AOL, obj.INC, obj.RAAN);
+            obj = maneuver_XYZ(obj, dV_XYZ);
         end
 
         function obj = update_properties(obj)
             %UPDATE_PROPERTIES, calculates all derived non COE properties
 
             %MU          % Gravitational parameter of Body
-            obj.MU = Body_Grav_Param(obj.Body);
+            obj.MU = obj.Body.Mu;
 
             % P           % Semi-latus Rectum
             obj.SLR = obj.SMA*(1 - obj.ECC^2);
@@ -231,7 +259,7 @@ classdef orbit
                     obj.TA = obj.TA - 2*pi;
                 end
                 % HA          % Hyperbolic Anomaly
-                obj.HA = mod(2*atanh(sqrt((1-obj.ECC)/(1+obj.ECC))*tan(obj.TA/2)), 2*pi);
+                obj.HA = mod(2*atanh(sqrt((obj.ECC-1)/(obj.ECC+1))*tan(obj.TA/2)), 2*pi);
                 % NA          % Hyperbolic Mean Anomaly
                 obj.NA = obj.ECC*sinh(obj.HA) - obj.HA;
                 obj.MM = sqrt(obj.MU/(-obj.SMA^3));
@@ -240,7 +268,7 @@ classdef orbit
                 obj.RA = NaN;
             end
 
-            if obj.RP < Body_Radius(obj.Body)
+            if obj.RP < obj.Body.Radius
                 warning('Orbit intersects body surface.')
             end
             
@@ -281,17 +309,17 @@ classdef orbit
             obj.R_DOT = norm(dot(obj.R_RTH, obj.V_RTH)/obj.R);
 
             % R_EPH       % Position vector in fixed orbit frame
-            obj.R_EPH = rth2eph(obj.R_RTH, obj.TA);
+            obj.R_EPH = Frame.rth2eph(obj.R_RTH, obj.TA);
             % V_EPH       % Velcotiy vector in fixed orbit frame
-            obj.V_EPH = rth2eph(obj.V_RTH, obj.TA);
+            obj.V_EPH = Frame.rth2eph(obj.V_RTH, obj.TA);
             
             % R_XYZ       % Position vector in inertial frame
-            obj.R_XYZ = rth2xyz(obj.R_RTH, obj.AOL, obj.INC, obj.RAAN);
+            obj.R_XYZ = Frame.rth2xyz(obj.R_RTH, obj.AOL, obj.INC, obj.RAAN);
             % V_XYZ       % Velocity vector in inertial frame
-            obj.V_XYZ = rth2xyz(obj.V_RTH, obj.AOL, obj.INC, obj.RAAN);
+            obj.V_XYZ = Frame.rth2xyz(obj.V_RTH, obj.AOL, obj.INC, obj.RAAN);
             if isnan(obj.RAAN) % in an equatorial orbit
-                obj.R_XYZ = rth2xyz(obj.R_RTH, obj.AOL, obj.INC, 0);
-                obj.V_XYZ = rth2xyz(obj.V_RTH, obj.AOL, obj.INC, 0);
+                obj.R_XYZ = Frame.rth2xyz(obj.R_RTH, obj.AOL, obj.INC, 0);
+                obj.V_XYZ = Frame.rth2xyz(obj.V_RTH, obj.AOL, obj.INC, 0);
             end
 
             % H_XYZ       % Angular Momentum Vector in inertial frame
@@ -315,7 +343,7 @@ classdef orbit
             
             figure()
             hold on
-            plot(r_e_vec, r_p_vec)
+            plot(r_e_vec, r_p_vec,'LineWidth',1.5)
             xlabel("$$\hat{e}$$ direction [km]",'Interpreter','Latex')
             ylabel("$$\hat{p}$$ direction [km]",'Interpreter','Latex')
             title("Orbit Plot, $$\hat{e},\hat{p},\hat{h}$$ Frame, AAE 532 Blake Lowe", 'Interpreter','Latex')
@@ -324,7 +352,7 @@ classdef orbit
                 plot(aux_e_vec, aux_p_vec)
             end
             if (draw_body)
-                p = nsidedpoly(1000, 'Center', [0 0], 'Radius', Body_Radius(obj.Body));
+                p = nsidedpoly(1000, 'Center', [0 0], 'Radius', obj.Body.Radius);
                 plot(p, 'FaceColor', 'b')
             end
             scatter(0, 0, 'black', 'x') % focus
@@ -334,7 +362,7 @@ classdef orbit
             end
             if (draw_nodes)
                 % TODO
-                %N_EPH = xyz2eph(N_XYZ, obj.AOP, obj.INC, obj.RAAN);
+                %N_EPH = Frame.xyz2eph(N_XYZ, obj.AOP, obj.INC, obj.RAAN);
                 plot([-cos(-obj.AOP), cos(-obj.AOP)]*obj.SMA, [-sin(-obj.AOP), sin(-obj.AOP)]*3*obj.SMA, 'red--')
             end
             if (draw_pos)
@@ -361,27 +389,38 @@ classdef orbit
             r_e_vec = r_mag_vec.*cos(ta_vec);
             r_p_vec = r_mag_vec.*sin(ta_vec);
 
-            r2_mag_vec = orbit2.SLR./(1+orbit2.ECC*cos(ta_vec - dAOP));
-            r2_e_vec = r2_mag_vec.*cos(ta_vec);
-            r2_p_vec = r2_mag_vec.*sin(ta_vec);
+            r2_mag_vec = orbit2.SLR./(1+orbit2.ECC*cos(ta_vec));
+            r2_e_vec = zeros(1, n);
+            r2_p_vec = zeros(1, n);
+            for i = 1:n
+                r2_xyz = Frame.rth2xyz([r2_mag_vec(i);0;0], orbit2.AOP + ta_vec(i), orbit2.INC, orbit2.RAAN);
+                r2_eph1 = Frame.xyz2eph(r2_xyz, obj.AOP, obj.INC, obj.RAAN);
+                r2_e_vec(i) = r2_eph1(1);
+                r2_p_vec(i) = r2_eph1(2);
+            end
+
 
             figure()
             hold on
-            plot(r_e_vec, r_p_vec)
-            plot(r2_e_vec, r2_p_vec)
+            plot(r_e_vec, r_p_vec,'LineWidth',1.5)
+            plot(r2_e_vec, r2_p_vec,'LineWidth',1.5)
             xlabel("$$\hat{e}$$ direction [km]",'Interpreter','Latex')
             ylabel("$$\hat{p}$$ direction [km]",'Interpreter','Latex')
             title("Overlaid Orbit Plot, $$\hat{e},\hat{p},\hat{h}$$ Frame, AAE 532 Blake Lowe", 'Interpreter','Latex')
             axis equal
             if (draw_body)
-                p = nsidedpoly(1000, 'Center', [0 0], 'Radius', Body_Radius(obj.Body));
+                p = nsidedpoly(1000, 'Center', [0 0], 'Radius', obj.Body.Radius);
                 plot(p, 'FaceColor', 'b')
             end
             scatter(0, 0, 'black', 'x') % focus
             scatter(-obj.SMA*obj.ECC, 0, 'black', '+') %center
             if (draw_apsides)
                 plot([-obj.RA,obj.RP], [0,0], 'black--')
-                plot([-orbit2.RA,orbit2.RP]*cos(dAOP), [-orbit2.RA,orbit2.RP]*sin(dAOP), 'black--')
+                peri_xyz  = Frame.eph2xyz([orbit2.RP;0;0], orbit2.AOP + 0, orbit2.INC, orbit2.RAAN);
+                peri_eph1 = Frame.xyz2eph(peri_xyz, obj.AOP, obj.INC, obj.RAAN);
+                apo_xyz  = Frame.eph2xyz([-orbit2.RA;0;0], orbit2.AOP + 0, orbit2.INC, orbit2.RAAN);
+                apo_eph1 = Frame.xyz2eph(apo_xyz, obj.AOP, obj.INC, obj.RAAN);
+                plot([peri_eph1(1),apo_eph1(1)], [peri_eph1(2),apo_eph1(2)], 'black--')
             end
             if (draw_pos)
                 scatter(obj.R_EPH(1), obj.R_EPH(2), 'black')
@@ -391,7 +430,14 @@ classdef orbit
                 plot([0,obj.R_EPH(1)], [0,obj.R_EPH(2)], 'black')
             end
 
-            ylim([-1.1, 1.1]*obj.SMA)
+            minx = min([r_e_vec, r2_e_vec]);
+            maxx = max([r_e_vec, r2_e_vec]);
+            miny = min([r_p_vec, r2_p_vec]);
+            maxy = max([r_p_vec, r2_p_vec]);
+            biga = max(obj.SMA, orbit2.SMA);
+
+            xlim([minx, maxx]+[-0.1, 0.1]*biga)
+            ylim([miny, maxy]+[-0.1, 0.1]*biga)
 
             if exist('legend_labels', 'var')
                 legend(legend_labels)
@@ -400,7 +446,7 @@ classdef orbit
             hold off
         end
 
-        function plot_XYZ(obj, n, draw_body, draw_pos, legend_labels)
+        function plot_XYZ(obj, n, draw_body, draw_plane, draw_pos, draw_apsides, legend_labels)
             ta_vec = linspace(0, 2*pi, n);
             r_mag_vec = obj.SLR./(1+obj.ECC*cos(ta_vec));
             r_e_vec = r_mag_vec.*cos(ta_vec);
@@ -408,7 +454,7 @@ classdef orbit
             r_eph_vec = [r_e_vec; r_p_vec; zeros(1,n)];
             r_xyz_vec = zeros(3, n);
             for i = 1:n
-                r_xyz_vec(:,i) = eph2xyz(r_eph_vec(:,i), obj.AOP, obj.INC, obj.RAAN);
+                r_xyz_vec(:,i) = Frame.eph2xyz(r_eph_vec(:,i), obj.AOP, obj.INC, obj.RAAN);
             end
             r_x_vec = r_xyz_vec(1,:);
             r_y_vec = r_xyz_vec(2,:);
@@ -416,7 +462,7 @@ classdef orbit
 
             figure()
             hold on
-            plot3(r_x_vec, r_y_vec, r_z_vec)
+            plot3(r_x_vec, r_y_vec, r_z_vec,'LineWidth',1.5)
             title("Orbit Plot, $$\hat{x},\hat{y},\hat{z}$$ Frame, AAE 532 Blake Lowe", 'Interpreter','Latex')
             xlabel('$$\hat x$$ direction [km]', 'Interpreter','Latex')
             ylabel('$$\hat y$$ direction [km]', 'Interpreter','Latex')
@@ -425,7 +471,7 @@ classdef orbit
 
             % earth sphere
             if (draw_body)
-                R_e = Body_Radius(obj.Body);
+                R_e = obj.Body.Radius;
                 [sph_x, sph_y, sph_z] = sphere(50);
                 surf(sph_x*R_e, sph_y*R_e, sph_z*R_e)
                 colormap summer
@@ -435,17 +481,30 @@ classdef orbit
             if (draw_pos)
                 scatter3(obj.R_XYZ(1), obj.R_XYZ(2), obj.R_XYZ(3), 'black')
             end
+
+            if (draw_apsides)
+                peri1_xyz = Frame.eph2xyz([obj.RP;0;0], obj.AOP, obj.INC, obj.RAAN);
+                apo1_xyz = Frame.eph2xyz([-obj.RA;0;0], obj.AOP, obj.INC, obj.RAAN);
+                plot3([peri1_xyz(1),apo1_xyz(1)], [peri1_xyz(2),apo1_xyz(2)], [peri1_xyz(3), apo1_xyz(3)], 'black--')
+            end
             
             buf = 0.1*obj.SMA;
-            if (max(-min(r_x_vec),max(r_x_vec)) > max(-min(r_y_vec),max(r_y_vec))) && ...
-               (max(-min(r_x_vec),max(r_x_vec)) > max(-min(r_z_vec),max(r_z_vec)))
-                xlim([min(r_x_vec) - buf, max(r_x_vec) + buf]*1.2)
-            elseif (max(-min(r_y_vec),max(r_y_vec)) > max(-min(r_x_vec),max(r_x_vec))) && ...
-               (max(-min(r_y_vec),max(r_y_vec)) > max(-min(r_z_vec),max(r_z_vec)))
-                ylim([min(r_y_vec) - buf, max(r_y_vec) + buf])
-            else
-                zlim([min(r_z_vec) - buf, max(r_z_vec) + buf])
+            minx = min(r_x_vec)-buf;
+            maxx = max(r_x_vec)+buf;
+            miny = min(r_y_vec)-buf;
+            maxy = max(r_y_vec)+buf;
+            minz = min(r_z_vec)-buf;
+            maxz = max(r_z_vec)+buf;
+
+            % fundamental plane
+            if (draw_plane)
+                p = patch([minx, maxx, maxx, minx], [miny, miny, maxy, maxy], [0,0,0,0], 'black');
+                set(p,'facealpha',0.5);
             end
+
+            xlim([minx, maxx])
+            ylim([miny, maxy])
+            zlim([minz, maxz])
 
             view([1,-1,1])
             hold off
@@ -455,7 +514,7 @@ classdef orbit
             end
         end
 
-        function plot_XYZ_overlay(obj, n, orbit2, draw_body, draw_pos, legend_labels)
+        function plot_XYZ_overlay(obj, n, orbit2, draw_body, draw_plane, draw_pos, draw_apsides, legend_labels)
             ta_vec = linspace(0, 2*pi, n);
             r_mag_vec = obj.SLR./(1+obj.ECC*cos(ta_vec));
             r_e_vec = r_mag_vec.*cos(ta_vec);
@@ -470,8 +529,8 @@ classdef orbit
             r2_xyz_vec = zeros(3, n);
 
             for i = 1:n
-                r_xyz_vec(:,i) = eph2xyz(r_eph_vec(:,i), obj.AOP, obj.INC, obj.RAAN);
-                r2_xyz_vec(:,i) = eph2xyz(r2_eph_vec(:,i), orbit2.AOP, orbit2.INC, orbit2.RAAN);
+                r_xyz_vec(:,i) = Frame.eph2xyz(r_eph_vec(:,i), obj.AOP, obj.INC, obj.RAAN);
+                r2_xyz_vec(:,i) = Frame.eph2xyz(r2_eph_vec(:,i), orbit2.AOP, orbit2.INC, orbit2.RAAN);
             end
             r_x_vec = r_xyz_vec(1,:);
             r_y_vec = r_xyz_vec(2,:);
@@ -482,42 +541,58 @@ classdef orbit
 
             figure()
             hold on
-            plot3(r_x_vec, r_y_vec, r_z_vec)
-            plot3(r2_x_vec, r2_y_vec, r2_z_vec)
+            plot3(r_x_vec, r_y_vec, r_z_vec,'LineWidth',1.5)
+            plot3(r2_x_vec, r2_y_vec, r2_z_vec,'LineWidth',1.5)
             title("Orbit Plot, $$\hat{x},\hat{y},\hat{z}$$ Frame, AAE 532 Blake Lowe", 'Interpreter','Latex')
             xlabel('$$\hat x$$ direction [km]', 'Interpreter','Latex')
             ylabel('$$\hat y$$ direction [km]', 'Interpreter','Latex')
             zlabel('$$\hat z$$ direction [km]', 'Interpreter','Latex')
             axis equal
 
-            % earth sphere
+            % body sphere
             if (draw_body)
-                R_e = Body_Radius(obj.Body);
+                R_e = obj.Body.Radius;
                 [sph_x, sph_y, sph_z] = sphere(50);
-                surf(sph_x*R_e, sph_y*R_e, sph_z*R_e)
+                v = surf(sph_x*R_e, sph_y*R_e, sph_z*R_e);
                 colormap summer
                 shading interp
+                set(v,'facealpha',0.65);
             end
 
             if (draw_pos)
                 scatter3(obj.R_XYZ(1), obj.R_XYZ(2), obj.R_XYZ(3), 'black')
             end
 
-            % TODO Fix
-            buf = 0.1*max(obj.SMA, orbit2.SMA);
-            if (max([-min(r_x_vec),max(r_x_vec), -min(r2_x_vec),max(r2_x_vec)]) >...
-                    max([-min(r_y_vec),max(r_y_vec),-min(r2_y_vec),max(r2_y_vec)])) && ...
-               (max([-min(r_x_vec),max(r_x_vec), -min(r2_x_vec),max(r2_x_vec)]) >...
-                    max([-min(r_z_vec),max(r_z_vec), -min(r2_z_vec),max(r2_z_vec)]))
-                xlim([min(min(r_x_vec), min(r2_x_vec)) - buf, max(max(r_x_vec), max(r2_x_vec)) + buf]*1.2)
-            elseif (max([-min(r_y_vec),max(r_y_vec), -min(r2_y_vec),max(r2_y_vec)]) >...
-                    max([-min(r_x_vec),max(r_x_vec),-min(r2_x_vec),max(r2_x_vec)])) && ...
-               (max([-min(r_y_vec),max(r_y_vec), -min(r2_y_vec),max(r2_y_vec)]) >...
-                    max([-min(r_z_vec),max(r_z_vec), -min(r2_z_vec),max(r2_z_vec)]))
-                xlim([min(min(r_y_vec), min(r2_y_vec)) - buf, max(max(r_y_vec), max(r2_y_vec)) + buf])
-            else
-                xlim([min(min(r_z_vec), min(r2_z_vec)) - buf, max(max(r_z_vec), max(r2_z_vec)) + buf])
+            if (draw_apsides)
+                peri1_xyz = Frame.eph2xyz([obj.RP;0;0], obj.AOP, obj.INC, obj.RAAN);
+                apo1_xyz = Frame.eph2xyz([-obj.RA;0;0], obj.AOP, obj.INC, obj.RAAN);
+                peri2_xyz = Frame.eph2xyz([orbit2.RP;0;0], orbit2.AOP, orbit2.INC, orbit2.RAAN);
+                apo2_xyz  = Frame.eph2xyz([-orbit2.RA;0;0], orbit2.AOP, orbit2.INC, orbit2.RAAN);
+                plot3([peri1_xyz(1),apo1_xyz(1)], [peri1_xyz(2),apo1_xyz(2)], [peri1_xyz(3), apo1_xyz(3)], 'black--')
+                plot3([peri2_xyz(1),apo2_xyz(1)], [peri2_xyz(2),apo2_xyz(2)], [peri2_xyz(3), apo2_xyz(3)], 'black--')
             end
+            
+            buf = 0.1*max(obj.SMA, orbit2.SMA);
+            minx = min([r_x_vec, r2_x_vec])-buf;
+            maxx = max([r_x_vec, r2_x_vec])+buf;
+            miny = min([r_y_vec, r2_y_vec])-buf;
+            maxy = max([r_y_vec, r2_y_vec])+buf;
+            minz = min([r_z_vec, r2_z_vec])-buf;
+            maxz = max([r_z_vec, r2_z_vec])+buf;
+            
+            xbounds = [minx, maxx];
+            ybounds = [miny, maxy];
+            zbounds = [minz, maxz];
+
+            % fundamental plane
+            if (draw_plane)
+                p = patch([minx, maxx, maxx, minx], [miny, miny, maxy, maxy], [0,0,0,0], 'black');
+                set(p,'facealpha',0.5);
+            end
+
+            xlim(xbounds)
+            ylim(ybounds)
+            zlim(zbounds)
 
             view([1,-1,1])
             hold off

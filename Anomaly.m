@@ -1,4 +1,4 @@
-classdef AnomalyConvert
+classdef Anomaly
     %ANOMALYCONVERT Set of static methods for converting between anomalies
     
     methods(Static)
@@ -25,6 +25,10 @@ classdef AnomalyConvert
                     EA = E_new;
                 end
             end
+        end
+
+        function [MA] = EA2MA(EA, ECC)
+            MA = EA - ECC*sin(EA);
         end
 
         function [HA] = NA2HA(NA, ECC, tol)
@@ -62,6 +66,10 @@ classdef AnomalyConvert
             end
         end
 
+        function [NA] = HA2NA(HA, ECC)
+            NA = HA - ECC*sinh(HA);
+        end
+
         function [BA] = OA2BA(OA)
             %[BA] = OA2BA(OA)
             % Convert Parabolic Mean Anomaly to Parabolic Eccentric Anomaly
@@ -78,6 +86,40 @@ classdef AnomalyConvert
         
             % Calculate the one real root
             BA = (-b/2 + sqrt(del))^(1/3) + (-b/2 - sqrt(del))^(1/3);
+        end
+
+        function [OA] = BA2OA(BA)
+            OA = BA + BA^3/3;
+        end
+
+        function TA = EA2TA(EA, ECC)
+            TA = 2*atan(sqrt((1 + ECC)/(1 - ECC))*tan(EA/2));
+        end
+
+        function EA = TA2EA(TA, ECC)
+            EA = 2*atan(sqrt((1 - ECC)/(1 + ECC))*tan(TA/2));
+        end
+
+        function TA = HA2TA(HA, ECC)
+            TA = mod(2*atan(sqrt((ECC+1)/(ECC-1))*tanh(HA/2)), 2*pi);
+            if (TA > pi) % Ensure True anomaly is [-pi, pi]
+                TA = TA - pi;
+            end
+        end
+
+        function HA = TA2HA(TA, ECC)
+            HA = 2*atanh(sqrt((ECC-1)/(ECC+1))*tan(TA/2));
+        end
+
+        function TA = BA2TA(BA)
+            TA = mod(2*atan(BA), 2*pi);
+            if (TA > pi) % Ensure True anomaly is [-pi, pi]
+                TA = TA - pi;
+            end
+        end
+
+        function BA = TA2BA(TA)
+            BA = tan(TA/2);
         end
 
     end
