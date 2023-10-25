@@ -495,12 +495,12 @@ classdef orbit
             end
             
             buf = 0.1*obj.SMA;
-            minx = min(r_x_vec)-buf;
-            maxx = max(r_x_vec)+buf;
-            miny = min(r_y_vec)-buf;
-            maxy = max(r_y_vec)+buf;
-            minz = min(r_z_vec)-buf;
-            maxz = max(r_z_vec)+buf;
+            minx = min([r_x_vec, -obj.Body.Radius])-buf;
+            maxx = max([r_x_vec, obj.Body.Radius])+buf;
+            miny = min([r_y_vec, -obj.Body.Radius])-buf;
+            maxy = max([r_y_vec, obj.Body.Radius])+buf;
+            minz = min([r_z_vec, -obj.Body.Radius])-buf;
+            maxz = max([r_z_vec, obj.Body.Radius])+buf;
 
             % fundamental plane
             if (draw_plane)
@@ -520,7 +520,7 @@ classdef orbit
             end
         end
 
-        function plot_XYZ_overlay(obj, n, orbit2, draw_body, draw_plane, draw_pos, draw_apsides, legend_labels)
+        function plot_XYZ_overlay(obj, n, orbits, draw_body, draw_plane, draw_pos, draw_apsides, legend_labels)
             ta_vec = linspace(0, 2*pi, n);
             r_mag_vec = obj.SLR./(1+obj.ECC*cos(ta_vec));
             r_e_vec = r_mag_vec.*cos(ta_vec);
@@ -528,32 +528,72 @@ classdef orbit
             r_eph_vec = [r_e_vec; r_p_vec; zeros(1,n)];
             r_xyz_vec = zeros(3, n);
 
-            r2_mag_vec = orbit2.SLR./(1+orbit2.ECC*cos(ta_vec));
-            r2_e_vec = r2_mag_vec.*cos(ta_vec);
-            r2_p_vec = r2_mag_vec.*sin(ta_vec);
-            r2_eph_vec = [r2_e_vec; r2_p_vec; zeros(1,n)];
-            r2_xyz_vec = zeros(3, n);
-
             for i = 1:n
                 r_xyz_vec(:,i) = Frame.eph2xyz(r_eph_vec(:,i), obj.AOP, obj.INC, obj.RAAN);
-                r2_xyz_vec(:,i) = Frame.eph2xyz(r2_eph_vec(:,i), orbit2.AOP, orbit2.INC, orbit2.RAAN);
             end
+
             r_x_vec = r_xyz_vec(1,:);
             r_y_vec = r_xyz_vec(2,:);
             r_z_vec = r_xyz_vec(3,:);
-            r2_x_vec = r2_xyz_vec(1,:);
-            r2_y_vec = r2_xyz_vec(2,:);
-            r2_z_vec = r2_xyz_vec(3,:);
+
+            minx = min([r_x_vec, -obj.Body.Radius]);
+            maxx = max([r_x_vec, obj.Body.Radius]);
+            miny = min([r_y_vec, -obj.Body.Radius]);
+            maxy = max([r_y_vec, obj.Body.Radius]);
+            minz = min([r_z_vec, -obj.Body.Radius]);
+            maxz = max([r_z_vec, obj.Body.Radius]);
 
             figure()
             hold on
             plot3(r_x_vec, r_y_vec, r_z_vec,'LineWidth',1.5)
-            plot3(r2_x_vec, r2_y_vec, r2_z_vec,'LineWidth',1.5)
             title("Orbit Plot, $$\hat{x},\hat{y},\hat{z}$$ Frame, AAE 532 Blake Lowe", 'Interpreter','Latex')
             xlabel('$$\hat x$$ direction [km]', 'Interpreter','Latex')
             ylabel('$$\hat y$$ direction [km]', 'Interpreter','Latex')
             zlabel('$$\hat z$$ direction [km]', 'Interpreter','Latex')
             axis equal
+
+            biga = obj.SMA;
+
+            for o = 1:length(orbits)
+                ro_mag_vec = orbits(o).SLR./(1+orbits(o).ECC*cos(ta_vec));
+                ro_e_vec = ro_mag_vec.*cos(ta_vec);
+                ro_p_vec = ro_mag_vec.*sin(ta_vec);
+                ro_eph_vec = [ro_e_vec; ro_p_vec; zeros(1,n)];
+                ro_xyz_vec = zeros(3, n);
+
+                for i = 1:n
+                    ro_xyz_vec(:,i) = Frame.eph2xyz(ro_eph_vec(:,i), orbits(o).AOP, orbits(o).INC, orbits(o).RAAN);
+                end
+
+                ro_x_vec = ro_xyz_vec(1,:);
+                ro_y_vec = ro_xyz_vec(2,:);
+                ro_z_vec = ro_xyz_vec(3,:);
+
+                plot3(ro_x_vec, ro_y_vec, ro_z_vec,'LineWidth',1.5)
+                
+                if orbits(o).SMA > biga
+                    biga = orbits(o).SMA;
+                end
+                if min(ro_x_vec) < minx
+                    minx = min(ro_x_vec);
+                end
+                if max(ro_x_vec) > maxx
+                    maxx = max(ro_x_vec);
+                end
+                if min(ro_y_vec) < miny
+                    miny = min(ro_y_vec);
+                end
+                if max(ro_y_vec) > maxy
+                    maxy = max(ro_y_vec);
+                end
+                if min(ro_z_vec) < minz
+                    minz = min(ro_z_vec);
+                end
+                if max(ro_z_vec) > maxz
+                    maxz = max(ro_z_vec);
+                end
+
+            end
 
             % body sphere
             if (draw_body)
@@ -567,34 +607,34 @@ classdef orbit
 
             if (draw_pos)
                 scatter3(obj.R_XYZ(1), obj.R_XYZ(2), obj.R_XYZ(3), 'black', 'filled')
-                R2_XYZ = Frame.rth2xyz([orbit2.R;0;0], orbit2.AOL, orbit2.INC, orbit2.RAAN);
-                scatter3(R2_XYZ(1), R2_XYZ(2), R2_XYZ(3), 'black','filled')
+
+                for o = 1:length(orbits)
+                    Ro_XYZ = Frame.rth2xyz([orbits(o).R;0;0], orbits(o).AOL, orbits(o).INC, orbits(o).RAAN);
+                    scatter3(Ro_XYZ(1), Ro_XYZ(2), Ro_XYZ(3), 'black','filled')
+                end
             end
 
             if (draw_apsides)
                 peri1_xyz = Frame.eph2xyz([obj.RP;0;0], obj.AOP, obj.INC, obj.RAAN);
                 apo1_xyz = Frame.eph2xyz([-obj.RA;0;0], obj.AOP, obj.INC, obj.RAAN);
-                peri2_xyz = Frame.eph2xyz([orbit2.RP;0;0], orbit2.AOP, orbit2.INC, orbit2.RAAN);
-                apo2_xyz  = Frame.eph2xyz([-orbit2.RA;0;0], orbit2.AOP, orbit2.INC, orbit2.RAAN);
                 plot3([peri1_xyz(1),apo1_xyz(1)], [peri1_xyz(2),apo1_xyz(2)], [peri1_xyz(3), apo1_xyz(3)], 'black--')
-                plot3([peri2_xyz(1),apo2_xyz(1)], [peri2_xyz(2),apo2_xyz(2)], [peri2_xyz(3), apo2_xyz(3)], 'black--')
+
+                for o = 1:length(orbits)
+                    perio_xyz = Frame.eph2xyz([orbits(o).RP;0;0], orbits(o).AOP, orbits(o).INC, orbits(o).RAAN);
+                    apoo_xyz  = Frame.eph2xyz([-orbits(o).RA;0;0], orbits(o).AOP, orbits(o).INC, orbits(o).RAAN);
+                    plot3([perio_xyz(1),apoo_xyz(1)], [perio_xyz(2),apoo_xyz(2)], [perio_xyz(3), apoo_xyz(3)], 'black--')
+                end
             end
             
-            buf = 0.1*max(obj.SMA, orbit2.SMA);
-            minx = min([r_x_vec, r2_x_vec])-buf;
-            maxx = max([r_x_vec, r2_x_vec])+buf;
-            miny = min([r_y_vec, r2_y_vec])-buf;
-            maxy = max([r_y_vec, r2_y_vec])+buf;
-            minz = min([r_z_vec, r2_z_vec])-buf;
-            maxz = max([r_z_vec, r2_z_vec])+buf;
+            buf = 0.1*biga;
             
-            xbounds = [minx, maxx];
-            ybounds = [miny, maxy];
-            zbounds = [minz, maxz];
+            xbounds = [minx-buf, maxx+buf];
+            ybounds = [miny-buf, maxy+buf];
+            zbounds = [minz-buf, maxz+buf];
 
             % fundamental plane
             if (draw_plane)
-                p = patch([minx, maxx, maxx, minx], [miny, miny, maxy, maxy], [0,0,0,0], 'black');
+                p = patch([xbounds(1), xbounds(2), xbounds(2), xbounds(1)], [ybounds(1), ybounds(1), ybounds(2), ybounds(2)], [0,0,0,0], 'black');
                 set(p,'facealpha',0.5);
             end
 
