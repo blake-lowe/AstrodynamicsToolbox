@@ -80,6 +80,9 @@ classdef orbit
             elseif strcmp(varargin{1}, 'RRP') % Two Positions and P
                 % TODO using f and g functions to get v1 then RV2COE(r1,v1)
 
+            elseif strcmp(varargin{1}, 'Body') % todo date and ephemerides
+                body = varargin{2};
+                obj = orbit('COE', body.Focus, body.SMA, body.ECC, 0, body.INC, 0, 0);
             else
                 error('Invalid input mode specified')
             end
@@ -650,8 +653,50 @@ classdef orbit
             end
         end
 
-        function plot_EPH_tikz(obj)
-            % TODO
+        function plot_EPH_tikz(obj, draw_body, draw_pos, draw_apsides, draw_vectors, draw_angles)
+            % plot_EPH_tikz(obj, draw_body, draw_pos, draw_apsides, draw_vectors, draw_angles)
+
+            v_scale = 3;% higher is smaller velocity vectors
+            if(obj.Type ~= 0)
+                error('Non-elliptical orbits not supported yet')
+            end
+            fprintf('\\begin{center}\n')
+            fprintf('\\begin{tikzpicture}[scale = 1]\n')
+            fprintf('\\coordinate (focus) at (0,0);\n')
+            fprintf('\\coordinate (sc) at (%0.4f,%0.4f);\n', obj.R_EPH(1)/1e4, obj.R_EPH(2)/1e4)
+            b = obj.SMA*sqrt(1-obj.ECC^2);
+            fprintf('\\draw [line width = 1.2pt, blue] (%0.4f,0) ellipse (%0.4f and %0.4f);\n', -obj.SMA*obj.ECC/1e4, obj.SMA/1e4, b/1e4)
+            if (draw_body)
+                fprintf('\\draw [fill=white] (focus) circle [radius = %0.4f];\n', obj.Body.Radius/1e4)
+            end
+            if (draw_apsides)
+                fprintf('\\draw [dashed] (%0.4f,0) -- (%0.4f,0);\n', -obj.RA/1e4, obj.RP/1e4)
+            end
+            fprintf('\\node at (focus) [shift={(0,0)}] {$\\%s$};\n',obj.Body.Name)
+            e_hat = [obj.SMA/3e4;0;0];
+            p_hat = [0;obj.SMA/3e4;0];
+            r_hat = Frame.rth2eph(e_hat, obj.TA);
+            t_hat = Frame.rth2eph(p_hat, obj.TA);
+            if (draw_vectors)
+                fprintf('\\draw [teal, thick, ->](focus) -- node [midway, above right] {$\\bar{r}$} (sc);\n')
+                fprintf('\\draw [teal, ->](sc) -- ($(sc) + (%0.4f,%0.4f)$) node [above] {$\\bar{v}$};\n',obj.V_EPH(1)/v_scale, obj.V_EPH(2)/v_scale)
+                fprintf('\\draw [red, ->](focus) -- ($(focus) + (%0.4f,%0.4f)$) node [below right] {$\\hat{e}$};\n', e_hat(1), e_hat(2))
+                fprintf('\\draw [red, ->](focus) -- ($(focus) + (%0.4f,%0.4f)$) node [left] {$\\hat{p}$};\n', p_hat(1), p_hat(2))
+                fprintf('\\draw [red, ->](sc) -- ($(sc) + (%0.4f,%0.4f)$) node [above right] {$\\hat{r}$};\n', r_hat(1), r_hat(2))
+                fprintf('\\draw [red, ->](sc) -- ($(sc) + (%0.4f,%0.4f)$) node [below] {$\\hat{\\theta}$};\n', t_hat(1), t_hat(2))
+                fprintf('\\draw [gray, dashed](sc) -- ($(sc) - (%0.4f,%0.4f)$) node [above] {l.h.};\n', t_hat(1), t_hat(2))
+            end
+            if (draw_angles)
+                fprintf('\\draw[ultra thick,orange, |->] ([shift=(0:%0.4f)]focus) arc (0:%0.4f:%0.4f) node [midway, above right]{$\\theta^*$};\n', obj.RP/1.5e4, rad2deg(obj.TA), obj.RP/1.5e4)
+                ang1 = rad2deg(obj.TA+pi/2);
+                ang2 = ang1 - rad2deg(obj.FPA);
+                fprintf('\\draw[ultra thick,orange, |->] ([shift=(%0.4f:%0.4f)]sc) arc (%0.4f:%0.4f:%0.4f) node [midway, below left]{$\\gamma$};\n', ang1, obj.V/(2.5*v_scale), ang1, ang2, obj.V/(2.5*v_scale))
+            end
+            if (draw_pos)
+                fprintf('\\draw (sc) circle [radius = 0.1];%% node [right] {$s/c$};\n')
+            end
+            fprintf('\\end{tikzpicture}\n')
+            fprintf('\\end{center}\n')
         end
 
         function plot_XYZ_tikz(obj)
