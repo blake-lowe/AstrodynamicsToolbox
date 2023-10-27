@@ -93,11 +93,11 @@ classdef Anomaly
         end
 
         function TA = EA2TA(EA, ECC)
-            TA = 2*atan(sqrt((1 + ECC)/(1 - ECC))*tan(EA/2));
+            TA = mod(2*atan(sqrt((1 + ECC)/(1 - ECC))*tan(EA/2)), 2*pi);
         end
 
         function EA = TA2EA(TA, ECC)
-            EA = 2*atan(sqrt((1 - ECC)/(1 + ECC))*tan(TA/2));
+            EA = mod(2*atan(sqrt((1 - ECC)/(1 + ECC))*tan(TA/2)), 2*pi);
         end
 
         function TA = HA2TA(HA, ECC)

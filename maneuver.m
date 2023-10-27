@@ -98,10 +98,17 @@ classdef maneuver
             fprintf('\\draw [thin, dotted] (0,0) -- (sc);\n')
             fprintf('\\draw [->] (0,0) -- (0,1) node [above] {$\\hat p$};\n')
             fprintf('\\draw [->] (0,0) -- (1,0) node [above] {$\\hat e$};\n')
+            e_hat = [1;0;0];
+            p_hat = [0;1;0];
+            r_hat = Frame.rth2eph(e_hat, orbit.TA);
+            t_hat = Frame.rth2eph(p_hat, orbit.TA);
+            fprintf('\\draw [thin, ->] (sc) -- ($(sc) + (%0.4f,%0.4f)$) node [left] {$\\hat r$};\n', r_hat(1), r_hat(2))
+            fprintf('\\draw [->] (sc) -- ($(sc) + (%0.4f,%0.4f)$) node [below right] {$\\hat \\theta$};\n', t_hat(1), t_hat(2))
+            fprintf('\\draw [dashed] (sc) -- ($(sc) - (%0.4f,%0.4f)$) node [right] {l.h.};\n', t_hat(1), t_hat(2))
             fprintf('\\draw [fill=black] (sc) circle [radius = 0.025];\n')
-            fprintf('\\draw [thick, ->, blue] (sc) -- ($(sc) + (%0.4f, %0.4f)$) node [above right] {$\\bar v^-_1$};\n', v1(1), v1(2))
+            fprintf('\\draw [thick, ->, blue] (sc) -- ($(sc) + (%0.4f, %0.4f)$) node [above right] {$\\bar v^-$};\n', v1(1), v1(2))
             fprintf('\\draw [dashed, blue] (sc) -- ($(sc) + 1.2*(%0.4f, %0.4f)$);\n', v1(1), v1(2))
-            fprintf('\\draw [thick, ->, red] (sc) -- ($(sc) + (%0.4f, %0.4f)$) node [below right] {$\\bar v^+_1$};\n', v2(1), v2(2))
+            fprintf('\\draw [thick, ->, red] (sc) -- ($(sc) + (%0.4f, %0.4f)$) node [below right] {$\\bar v^+$};\n', v2(1), v2(2))
             fprintf('\\draw [thick, ->, orange] ($(sc) + (%0.4f, %0.4f)$) -- ($(sc) + (%0.4f, %0.4f)$) node [below left] {$\\Delta \\bar v$};\n', v1(1), v1(2), v2(1), v2(2))
             a0 = rad2deg(orbit.TA);
             at = rad2deg(orbit.TA+pi/2);
@@ -112,14 +119,7 @@ classdef maneuver
             fprintf('\\draw[thick,magenta, |->] ([shift=(%0.4f:0.75)]sc) arc (%0.4f:%0.4f:0.75) node [midway, left] {$\\gamma^+$};\n', at, at, a2)
             fprintf('\\draw[thick,magenta, |->] ([shift=(%0.4f:1.25)]sc) arc (%0.4f:%0.4f:1.25) node [midway, left] {$\\Delta \\gamma$};\n',  a1, a1, a2)
             fprintf('\\draw[thick,magenta, |->] ([shift=(%0.4f:0.25)]$(sc) + (%0.4f, %0.4f)$) arc (%0.4f:%0.4f:0.25) node [midway, below left] {$\\alpha$};\n', a1, v1(1), v1(2), a1, a1 - alpha)
-            %fprintf('\\draw[thick,cyan, <->] ([shift=(335.55:0.25)]$(sc) + (-5.3393, 2.4269)$) arc (335.55:257.64:0.25) node [midway, below right] {$\\eta$};\n')
-            e_hat = [1;0;0];
-            p_hat = [0;1;0];
-            r_hat = Frame.rth2eph(e_hat, orbit.TA);
-            t_hat = Frame.rth2eph(p_hat, orbit.TA);
-            fprintf('\\draw [thin, ->] (sc) -- ($(sc) + (%0.4f,%0.4f)$) node [left] {$\\hat r$};\n', r_hat(1), r_hat(2))
-            fprintf('\\draw [->] (sc) -- ($(sc) + (%0.4f,%0.4f)$) node [below right] {$\\hat \\theta$};\n', t_hat(1), t_hat(2))
-            fprintf('\\draw [dashed] (sc) -- ($(sc) - (%0.4f,%0.4f)$) node [right] {l.h.};\n', t_hat(1), t_hat(2))
+            fprintf('\\draw[thick,cyan, <->] ([shift=(%0.4f:0.25)]$(sc) + (%0.4f, %0.4f)$) arc (%0.4f:%0.4f:0.25) node [midway, below right] {$\\eta$};\n', at+180, v1(1), v1(2), at+180, a1-alpha)
             fprintf('\\end{tikzpicture}\n')
             fprintf('}\n')
             fprintf('\\end{figure}\n')
