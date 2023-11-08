@@ -339,7 +339,13 @@ classdef orbit
         end
 
         function plot_EPH(obj, n, draw_body, draw_pos, draw_vecs, draw_apsides, draw_nodes, draw_aux, legend_labels) % Only works for ellipses for now
-            ta_vec = linspace(0, 2*pi, n);
+            if obj.ECC >= 1
+                ta_lim = min(acos(-1/obj.ECC), max(2*pi/3, abs(obj.TA*1.01)));
+                ta_vec = linspace(-ta_lim, ta_lim, n);
+            else
+                ta_vec = linspace(0, 2*pi, n);
+            end
+            
             r_mag_vec = obj.SLR./(1+obj.ECC*cos(ta_vec));
             r_e_vec = r_mag_vec.*cos(ta_vec);
             r_p_vec = r_mag_vec.*sin(ta_vec);
@@ -387,14 +393,26 @@ classdef orbit
         end
 
         function plot_EPH_overlay(obj, n, orbit2, draw_body, draw_pos, draw_vecs, draw_apsides, legend_labels)
-            ta_vec = linspace(0, 2*pi, n);
+            if obj.ECC >= 1
+                ta_lim = min(acos(-1/obj.ECC), max(2*pi/3, abs(obj.TA*1.01)));
+                ta_vec = linspace(-ta_lim, ta_lim, n);
+            else
+                ta_vec = linspace(0, 2*pi, n);
+            end
             r_mag_vec = obj.SLR./(1+obj.ECC*cos(ta_vec));
             r_e_vec = r_mag_vec.*cos(ta_vec);
             r_p_vec = r_mag_vec.*sin(ta_vec);
 
+            if orbit2.ECC >= 1
+                ta_lim = min(acos(-1/orbit2.ECC), max(2*pi/3, abs(orbit2.TA*1.01)));
+                ta_vec = linspace(-ta_lim, ta_lim, n);
+            else
+                ta_vec = linspace(0, 2*pi, n);
+            end
             r2_mag_vec = orbit2.SLR./(1+orbit2.ECC*cos(ta_vec));
             r2_e_vec = zeros(1, n);
             r2_p_vec = zeros(1, n);
+
             for i = 1:n
                 r2_xyz = Frame.rth2xyz([r2_mag_vec(i);0;0], orbit2.AOP + ta_vec(i), orbit2.INC, orbit2.RAAN);
                 r2_eph1 = Frame.xyz2eph(r2_xyz, obj.AOP, obj.INC, obj.RAAN);
@@ -447,6 +465,7 @@ classdef orbit
 
             xlim([minx, maxx]+[-0.1, 0.1]*biga)
             ylim([miny, maxy]+[-0.1, 0.1]*biga)
+            axis equal
 
             if exist('legend_labels', 'var')
                 legend(legend_labels)
@@ -456,7 +475,13 @@ classdef orbit
         end
 
         function plot_XYZ(obj, n, draw_body, draw_plane, draw_pos, draw_apsides, legend_labels)
-            ta_vec = linspace(0, 2*pi, n);
+            if obj.ECC >= 1
+                ta_lim = min(acos(-1/obj.ECC), max(2*pi/3, abs(obj.TA*1.01)));
+                ta_vec = linspace(-ta_lim, ta_lim, n);
+            else
+                ta_vec = linspace(0, 2*pi, n);
+            end
+
             r_mag_vec = obj.SLR./(1+obj.ECC*cos(ta_vec));
             r_e_vec = r_mag_vec.*cos(ta_vec);
             r_p_vec = r_mag_vec.*sin(ta_vec);
@@ -524,7 +549,12 @@ classdef orbit
         end
 
         function plot_XYZ_overlay(obj, n, orbits, draw_body, draw_plane, draw_pos, draw_apsides, legend_labels)
-            ta_vec = linspace(0, 2*pi, n);
+            if obj.ECC >= 1
+                ta_lim = min(acos(-1/obj.ECC), max(2*pi/3, abs(obj.TA*1.01)));
+                ta_vec = linspace(-ta_lim, ta_lim, n);
+            else
+                ta_vec = linspace(0, 2*pi, n);
+            end
             r_mag_vec = obj.SLR./(1+obj.ECC*cos(ta_vec));
             r_e_vec = r_mag_vec.*cos(ta_vec);
             r_p_vec = r_mag_vec.*sin(ta_vec);
@@ -558,6 +588,12 @@ classdef orbit
             biga = obj.SMA;
 
             for o = 1:length(orbits)
+                if orbits(o).ECC >= 1
+                    ta_lim = min(acos(-1/orbits(o).ECC), max(2*pi/3, abs(orbits(o).TA*1.01)));
+                    ta_vec = linspace(-ta_lim, ta_lim, n);
+                else
+                    ta_vec = linspace(0, 2*pi, n);
+                end
                 ro_mag_vec = orbits(o).SLR./(1+orbits(o).ECC*cos(ta_vec));
                 ro_e_vec = ro_mag_vec.*cos(ta_vec);
                 ro_p_vec = ro_mag_vec.*sin(ta_vec);
