@@ -56,4 +56,3 @@ function [SMA, ECC, AOP, INC, RAAN, TA] = RV2COE(MU, R_XYZ, V_XYZ)
     end
 
 end
-

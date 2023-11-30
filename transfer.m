@@ -16,6 +16,8 @@ classdef transfer
             %transfer('Bi-parabolic', orbit, r_f)
             %transfer('Bi-elliptic', orbit, r_b, r_f)
             %transfer('One-Tangent', orbit, r_f, dTA_b, Periapsis)
+            %transfer('Lambert_minE', orbit1, orbit2, isShortWay)
+            %transfer('Lambert_dt', orbit1, orbit2, dt, isShortWay)
             o1 = varargin{2};
             mu = o1.Body.Mu;
             if (o1.ECC ~= 0)
@@ -46,9 +48,9 @@ classdef transfer
                 obj.dV = dVa + dVb;
                 obj.Time = pi*sqrt(a_t^3/mu);
             elseif strcmp(varargin{1}, 'Bi-parabolic')
-
+                error('Mode not implemented')
             elseif strcmp(varargin{1}, 'Bi-elliptic')
-
+                error('Mode not implemented')
             elseif strcmp(varargin{1}, 'One-tangent')
                 r2 = varargin{3};
                 dTA_b = varargin{4};
@@ -103,6 +105,47 @@ classdef transfer
                 obj.dV = abs(dVa) + abs(dVb);
                     
                 %todo
+            elseif strcmp(varargin{1}, 'Lambert_minE')
+                orbit1 = varargin{2};
+                orbit2 = varargin{3};
+                isShortWay = varargin{4};
+                r1_XYZ = orbit1.R_XYZ;
+                r2_XYZ = orbit2.R_XYZ;
+                mu = orbit1.Body.Mu;
+
+                r1 = norm(r1_XYZ);
+                r2 = norm(r2_XYZ);
+                
+                dTA = atan2(norm(cross(r1_XYZ, r2_XYZ)), dot(r1_XYZ, r2_XYZ));
+                c = sqrt(r1^2 + r2^2 - 2*r1*r2*cos(dTA));
+                s = (r1 + r2 + c)/2;
+                a_min = s/2;
+                p_min = (r1*r2/c)*(1-cos(dTA));
+                e_min = sqrt(1 - 2*p_min/s);
+                alpha = pi;
+                beta = 2*asin(sqrt((s-c)/s));
+                if isShortWay
+                    t_min = sqrt(a_min^3/mu)*(alpha - (beta - sin(beta)));
+                else
+                    t_min = sqrt(a_min^3/mu)*(alpha + (beta - sin(beta)));
+                end
+                
+                % use f and g functions to get velocity
+                v1_XYZ = (sqrt(mu*p_min)/(r1*r2*sin(dTA)))*(r2_XYZ - (1 - (r2/p_min)*(1 - cos(dTA)))*r1_XYZ);
+
+                o_t1 = orbit('RV', orbit1.Body, r1_XYZ, v1_XYZ);
+                o_t2 = o_t1.propagate_Time(t_min);
+
+                obj.Orbits = [orbit1, o_t1, o_t2, orbit2];
+
+                m1 = maneuver('XYZ', o_t1.V_XYZ - orbit1.V_XYZ);
+                m2 = maneuver('XYZ', orbit2.V_XYZ - o_t2.V_XYZ);
+
+                obj.Maneuvers = [m1, m2];
+                obj.Time = t_min;
+                obj.dV = m1.dV + m2.dV;
+            elseif strcmp(varargin{1}, 'Lambert_minE')
+                error('Mode not implemented')
             else
                 error('Invalid input mode specified')
             end

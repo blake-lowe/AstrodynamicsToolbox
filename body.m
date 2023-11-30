@@ -15,22 +15,41 @@ classdef body
     methods
         function obj = body(varargin)
             % body(name)
-            % body(name, focus, rotPeriod, radius, mu, sma, period, ecc, inc)
+            % body(name, focus, rotPeriod, radius, mu, sma, ecc, inc)
             if length(varargin) == 1 % From name
                 obj = body.bodyFromName(varargin{1});
-            elseif length(varargin) == 9 % Fully defined
+            elseif length(varargin) == 8 % Fully defined
                 obj.Name = varargin{1};
                 obj.Focus = varargin{2};
                 obj.RotPeriod = varargin{3};
                 obj.Radius = varargin{4};
                 obj.Mu = varargin{5};
                 obj.SMA = varargin{6};
-                obj.Period = varargin{7};
-                obj.ECC = varargin{8};
-                obj.INC = varargin{9};
+                obj.ECC = varargin{7};
+                obj.INC = varargin{8};
+                if ~strcmp(obj.Name, 'Sun')
+                    obj.Period = 2*pi*sqrt(obj.SMA^3/(obj.Mu + obj.Focus.Mu));
+                else
+                    obj.Period = NaN;
+                end
             else
                 error('Incorrect number of inputs')
             end
+        end
+    end
+
+    methods
+        
+        function o = get_orbit(obj)
+            o = orbit('COE', obj.Focus, obj.SMA, obj.ECC, 0, obj.INC, 0, 0);
+        end
+
+        function o = get_orbit_planar(obj)
+            o = orbit('COE', obj.Focus, obj.SMA, obj.ECC, 0, 0, 0, 0);
+        end
+
+        function o = get_orbit_circ(obj)
+            o = orbit('COE', obj.Focus, obj.SMA, 0, 0, 0, 0, 0);
         end
     end
 
@@ -143,7 +162,8 @@ classdef body
                 otherwise
                     error("Body: '"+ body +"' properties have not been defined.")
             end
-            obj = body(name, focus, rotPeriod, radius, mu, sma, period, ecc, inc);
+            obj = body(name, focus, rotPeriod, radius, mu, sma, ecc, inc);
+            obj.Period = period;
         end
     end
 end

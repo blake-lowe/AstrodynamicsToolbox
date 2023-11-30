@@ -52,6 +52,7 @@ classdef orbit
             %orbit('RV', Body, R_XYZ, V_XYZ)
             %orbit('RRP', Body, R1_XYZ, R2_XYZ, P) not implemented
             %orbit('RRT', Body, R1_XYZ, R2_XYZ, T21) not implemented
+            %orbit('VINFRP', Body, VINF, RP, IsRightHand)
             if ischar(varargin{2})
                 obj.Body = body(varargin{2});
             else
@@ -83,6 +84,27 @@ classdef orbit
             elseif strcmp(varargin{1}, 'Body') % todo date and ephemerides
                 body = varargin{2};
                 obj = orbit('COE', body.Focus, body.SMA, body.ECC, 0, body.INC, 0, 0);
+            elseif strcmp(varargin{1}, 'VINFRP') % Hyperbolic excess velocity and periapsis
+                % only works for planar tangential case
+                body = varargin{2};
+                VINF_XYZ = varargin{3};
+                RP = varargin{4};
+                IsRightHand = varargin{5};
+                VINF = norm(VINF_XYZ);
+                Energy = VINF^2/2;
+                obj.SMA = -body.Mu/(2*Energy);
+                obj.ECC = 1 - RP/obj.SMA;
+                delta = 2*asin(1/obj.ECC); % must be [0,pi]
+                if IsRightHand % change turn angle direction
+                    delta = -delta;
+                end
+                VINF_XYZ_P = Frame.body3(VINF_XYZ, delta);
+                EHAT_XYZ = VINF_XYZ - VINF_XYZ_P; % eccentricity vector points this way
+                obj.AOP = atan2(EHAT_XYZ(2), EHAT_XYZ(1));
+
+                obj.RAAN = 0;
+                obj.INC = 0;
+                obj.TA = 0;
             else
                 error('Invalid input mode specified')
             end
@@ -94,8 +116,8 @@ classdef orbit
             if (dTA < 0 && obj.Type ~= 0)
                 warning('Backwards propagation occurred on a non-elliptical orbit')
             end
-            obj.TA = obj.TA + dTA;
             TP_before = obj.TP;
+            obj.TA = obj.TA + dTA;
             obj = obj.update_properties();
             TP_after = obj.TP;
             if obj.Type == 0
@@ -195,6 +217,57 @@ classdef orbit
             end
 
             obj = obj.update_properties();
+        end
+
+        function obj = propagate_ToIntersection(obj, orb)
+            % only works for coplanar orbits
+            e1 = obj.ECC;
+            e2 = orb.ECC;
+            a1 = obj.SMA;
+            a2 = orb.SMA;
+            p1 = obj.SLR;
+            p2 = orb.SLR;
+            dw = orb.AOP - obj.AOP;
+
+            b1 = a1*e2*(1 - e1^2);
+            b2 = a2*e1*(1 - e2^2);
+            A = b1*e2 + b2*e1 - (b1*e1 + b2*e2)*cos(dw);
+            B = e1^2 + e2^2 - 2*e1*e2*cos(dw) - e1^2*e2^2*sin(dw)^2;
+            Del = sin(dw)^2*((b1^2 - 2*cos(dw)*b1*b2 + b2^2)*e1^2*e2^2 - (b1*e1 - b2*e2)^2);
+            if (Del < 0)
+                error('Orbits do not intersect')
+            end
+            r1 = (A + sqrt(Del))/B;
+            r2 = (A - sqrt(Del))/B;
+
+            TA1 = acos((1/e1)*(p1/r1 - 1));
+            TA2 = 2*pi - acos((1/e1)*(p1/r2 - 1));
+
+            r_11 = p2/(1+e2*cos(TA1-dw));
+            r_12 = p2/(1+e2*cos(2*pi-TA1-dw));
+            if r_11 == r1
+                TA1 = TA1;
+            elseif r_12 == r1
+                TA1 = 2*pi - TA1;
+            end
+
+            r_21 = p2/(1+e2*cos(TA2-dw));
+            r_22 = p2/(1+e2*cos(2*pi-TA2-dw));
+
+            if r_21 == r2
+                TA2 = TA2;
+            elseif r_22 == r2
+                TA2 = 2*pi - TA2;
+            end
+            
+            if obj.TA == TA1
+                dTA = mod(TA2 - obj.TA, 2*pi);
+            elseif obj.TA == TA2
+                dTA = mod(TA1 - obj.TA, 2*pi);
+            else
+                dTA = min(mod(TA1 - obj.TA, 2*pi), mod(TA2 - obj.TA, 2*pi));
+            end
+            obj = obj.propagate_TA(dTA);
         end
 
         function obj = maneuver_execute(obj, maneuver1)
@@ -461,7 +534,7 @@ classdef orbit
             maxx = max([r_e_vec, r2_e_vec]);
             miny = min([r_p_vec, r2_p_vec]);
             maxy = max([r_p_vec, r2_p_vec]);
-            biga = max(obj.SMA, orbit2.SMA);
+            biga = max(abs(obj.SMA), abs(orbit2.SMA));
 
             xlim([minx, maxx]+[-0.1, 0.1]*biga)
             ylim([miny, maxy]+[-0.1, 0.1]*biga)
@@ -522,7 +595,7 @@ classdef orbit
                 plot3([peri1_xyz(1),apo1_xyz(1)], [peri1_xyz(2),apo1_xyz(2)], [peri1_xyz(3), apo1_xyz(3)], 'black--')
             end
             
-            buf = 0.1*obj.SMA;
+            buf = abs(0.1*obj.SMA);
             minx = min([r_x_vec, -obj.Body.Radius])-buf;
             maxx = max([r_x_vec, obj.Body.Radius])+buf;
             miny = min([r_y_vec, -obj.Body.Radius])-buf;
@@ -585,7 +658,7 @@ classdef orbit
             zlabel('$$\hat z$$ direction [km]', 'Interpreter','Latex')
             axis equal
 
-            biga = obj.SMA;
+            biga = abs(obj.SMA);
 
             for o = 1:length(orbits)
                 if orbits(o).ECC >= 1
@@ -610,7 +683,7 @@ classdef orbit
 
                 plot3(ro_x_vec, ro_y_vec, ro_z_vec,'LineWidth',1.5)
                 
-                if orbits(o).SMA > biga
+                if abs(orbits(o).SMA) > abs(biga)
                     biga = orbits(o).SMA;
                 end
                 if min(ro_x_vec) < minx
@@ -642,6 +715,8 @@ classdef orbit
                 colormap summer
                 shading interp
                 set(v,'facealpha',0.65);
+
+                scatter3(0,0,0, 'black+')
             end
 
             if (draw_pos)
@@ -665,7 +740,7 @@ classdef orbit
                 end
             end
             
-            buf = 0.1*biga;
+            buf = abs(0.1*biga);
             
             xbounds = [minx-buf, maxx+buf];
             ybounds = [miny-buf, maxy+buf];

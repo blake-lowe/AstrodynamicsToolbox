@@ -78,8 +78,8 @@ classdef maneuver
         end
 
         function plot_EPH_tikz(obj, orbit)
-            vs = 2;
-            rs = 1e4;
+            vs = 0.5;
+            rs = 1e5;
             r = orbit.R_EPH/rs;
             v1 = orbit.V_EPH/vs;
             dv = obj.dV_EPH(orbit)/vs;
@@ -118,8 +118,8 @@ classdef maneuver
             fprintf('\\draw[thick,magenta, |->] ([shift=(%0.4f:0.25)]sc) arc (%0.4f:%0.4f:0.25) node [above] {$\\gamma^-$};\n', at, at, a1)
             fprintf('\\draw[thick,magenta, |->] ([shift=(%0.4f:0.75)]sc) arc (%0.4f:%0.4f:0.75) node [midway, left] {$\\gamma^+$};\n', at, at, a2)
             fprintf('\\draw[thick,magenta, |->] ([shift=(%0.4f:1.25)]sc) arc (%0.4f:%0.4f:1.25) node [midway, left] {$\\Delta \\gamma$};\n',  a1, a1, a2)
-            fprintf('\\draw[thick,magenta, |->] ([shift=(%0.4f:0.25)]$(sc) + (%0.4f, %0.4f)$) arc (%0.4f:%0.4f:0.25) node [midway, below left] {$\\alpha$};\n', a1, v1(1), v1(2), a1, a1 - alpha)
-            fprintf('\\draw[thick,cyan, <->] ([shift=(%0.4f:0.25)]$(sc) + (%0.4f, %0.4f)$) arc (%0.4f:%0.4f:0.25) node [midway, below right] {$\\eta$};\n', at+180, v1(1), v1(2), at+180, a1-alpha)
+            fprintf('\\draw[thick,magenta, |->] ([shift=(%0.4f:0.25)]$(sc) + (%0.4f, %0.4f)$) arc (%0.4f:%0.4f:0.25) node [midway, below left] {$\\alpha$};\n', a1, v1(1), v1(2), a1, a1 + alpha)
+            fprintf('\\draw[thick,cyan, <->] ([shift=(%0.4f:0.25)]$(sc) + (%0.4f, %0.4f)$) arc (%0.4f:%0.4f:0.25) node [midway, below right] {$\\eta$};\n', at+180, v1(1), v1(2), at+180, a1 + alpha)
             fprintf('\\end{tikzpicture}\n')
             fprintf('}\n')
             fprintf('\\end{figure}\n')
