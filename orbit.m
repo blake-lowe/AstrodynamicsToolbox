@@ -51,6 +51,7 @@ classdef orbit
             %orbit('RARP', Body, RA, RP, AOP, INC, RAAN, TA)
             %orbit('RV', Body, R_XYZ, V_XYZ)
             %orbit('RRP', Body, R1_XYZ, R2_XYZ, P) not implemented
+            %orbit('RRMin', Body, R1_XYZ, R2_XYZ, isShortWay)
             %orbit('RRT', Body, R1_XYZ, R2_XYZ, T21) not implemented
             %orbit('VINFRP', Body, VINF, RP, IsRightHand)
             if ischar(varargin{2})
@@ -105,6 +106,13 @@ classdef orbit
                 obj.RAAN = 0;
                 obj.INC = 0;
                 obj.TA = 0;
+            elseif strcmp(varargin{1}, 'RRMin') % Minimum energy lambbert arc
+                R1_XYZ = varargin{3};
+                R2_XYZ = varargin{4};
+                isShortWay = varargin{5};
+
+                [~, ~, ~, V1_XYZ] = LAMBERT_MIN_E(obj.Body.Mu, R1_XYZ, R2_XYZ, isShortWay);
+                obj = orbit('RV', obj.Body, R1_XYZ, V1_XYZ);
             else
                 error('Invalid input mode specified')
             end
@@ -447,7 +455,7 @@ classdef orbit
             if (draw_nodes)
                 % TODO
                 %N_EPH = Frame.xyz2eph(N_XYZ, obj.AOP, obj.INC, obj.RAAN);
-                plot([-cos(-obj.AOP), cos(-obj.AOP)]*obj.SMA, [-sin(-obj.AOP), sin(-obj.AOP)]*3*obj.SMA, 'red--')
+                plot([-cos(-obj.AOP), cos(-obj.AOP)]*3*obj.SMA, [-sin(-obj.AOP), sin(-obj.AOP)]*3*obj.SMA, 'red--')
             end
             if (draw_pos)
                 scatter(obj.R_EPH(1), obj.R_EPH(2), 'black')
@@ -457,88 +465,6 @@ classdef orbit
                 plot([0,obj.R_EPH(1)], [0,obj.R_EPH(2)], 'black')
             end
             %ylim([min(r_p_vec) - 0.1*obj.SMA, max(r_p_vec) + 0.1*obj.SMA])
-
-            if exist('legend_labels', 'var')
-                legend(legend_labels)
-            end
-
-            hold off
-        end
-
-        function plot_EPH_overlay(obj, n, orbit2, draw_body, draw_pos, draw_vecs, draw_apsides, legend_labels)
-            if obj.ECC >= 1
-                ta_lim = min(acos(-1/obj.ECC), max(2*pi/3, abs(obj.TA*1.01)));
-                ta_vec = linspace(-ta_lim, ta_lim, n);
-            else
-                ta_vec = linspace(0, 2*pi, n);
-            end
-            r_mag_vec = obj.SLR./(1+obj.ECC*cos(ta_vec));
-            r_e_vec = r_mag_vec.*cos(ta_vec);
-            r_p_vec = r_mag_vec.*sin(ta_vec);
-
-            if orbit2.ECC >= 1
-                ta_lim = min(acos(-1/orbit2.ECC), max(2*pi/3, abs(orbit2.TA*1.01)));
-                ta_vec = linspace(-ta_lim, ta_lim, n);
-            else
-                ta_vec = linspace(0, 2*pi, n);
-            end
-            r2_mag_vec = orbit2.SLR./(1+orbit2.ECC*cos(ta_vec));
-            r2_e_vec = zeros(1, n);
-            r2_p_vec = zeros(1, n);
-
-            for i = 1:n
-                r2_xyz = Frame.rth2xyz([r2_mag_vec(i);0;0], orbit2.AOP + ta_vec(i), orbit2.INC, orbit2.RAAN);
-                r2_eph1 = Frame.xyz2eph(r2_xyz, obj.AOP, obj.INC, obj.RAAN);
-                r2_e_vec(i) = r2_eph1(1);
-                r2_p_vec(i) = r2_eph1(2);
-            end
-
-
-            figure()
-            hold on
-            plot(r_e_vec, r_p_vec,'LineWidth',1.5)
-            plot(r2_e_vec, r2_p_vec,'LineWidth',1.5)
-            xlabel("$$\hat{e}$$ direction [km]",'Interpreter','Latex')
-            ylabel("$$\hat{p}$$ direction [km]",'Interpreter','Latex')
-            title("Overlaid Orbit Plot, $$\hat{e},\hat{p},\hat{h}$$ Frame, AAE 532 Blake Lowe", 'Interpreter','Latex')
-            axis equal
-            if (draw_body)
-                p = nsidedpoly(1000, 'Center', [0 0], 'Radius', obj.Body.Radius);
-                plot(p, 'FaceColor', 'b')
-            end
-            scatter(0, 0, 'black', 'x') % focus
-            scatter(-obj.SMA*obj.ECC, 0, 'black', '+') %center
-            if (draw_apsides)
-                plot([-obj.RA,obj.RP], [0,0], 'black--')
-                peri_xyz  = Frame.eph2xyz([orbit2.RP;0;0], orbit2.AOP + 0, orbit2.INC, orbit2.RAAN);
-                peri_eph1 = Frame.xyz2eph(peri_xyz, obj.AOP, obj.INC, obj.RAAN);
-                apo_xyz  = Frame.eph2xyz([-orbit2.RA;0;0], orbit2.AOP + 0, orbit2.INC, orbit2.RAAN);
-                apo_eph1 = Frame.xyz2eph(apo_xyz, obj.AOP, obj.INC, obj.RAAN);
-                plot([peri_eph1(1),apo_eph1(1)], [peri_eph1(2),apo_eph1(2)], 'black--')
-            end
-            if (draw_pos)
-                scatter(obj.R_EPH(1), obj.R_EPH(2), 'black')
-                R2_XYZ = Frame.rth2xyz([orbit2.R;0;0], orbit2.AOL, orbit2.INC, orbit2.RAAN);
-                R2_EPH1 = Frame.xyz2eph(R2_XYZ, obj.AOP, obj.INC, obj.RAAN);
-                scatter(R2_EPH1(1), R2_EPH1(2), 'black')
-            end
-            if (draw_vecs)
-                % TODO unit vectors, vectors, and angles
-                plot([0,obj.R_EPH(1)], [0,obj.R_EPH(2)], 'black')
-                R2_XYZ = Frame.rth2xyz([orbit2.R;0;0], orbit2.AOL, orbit2.INC, orbit2.RAAN);
-                R2_EPH1 = Frame.xyz2eph(R2_XYZ, obj.AOP, obj.INC, obj.RAAN);
-                plot([0,R2_EPH1(1)], [0,R2_EPH1(2)], 'black')
-            end
-
-            minx = min([r_e_vec, r2_e_vec]);
-            maxx = max([r_e_vec, r2_e_vec]);
-            miny = min([r_p_vec, r2_p_vec]);
-            maxy = max([r_p_vec, r2_p_vec]);
-            biga = max(abs(obj.SMA), abs(orbit2.SMA));
-
-            xlim([minx, maxx]+[-0.1, 0.1]*biga)
-            ylim([miny, maxy]+[-0.1, 0.1]*biga)
-            axis equal
 
             if exist('legend_labels', 'var')
                 legend(legend_labels)

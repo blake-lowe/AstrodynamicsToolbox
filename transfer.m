@@ -71,8 +71,6 @@ classdef transfer
                 va_b = sqrt((2*mu/r1) - (mu/a_b));
                 vb_b = sqrt((2*mu/r2) - (mu/a_b));
 
-                
-                
                 if periapsis % tangential burn at periapsis
                     dVa = va_b - v1;
                     m1b = maneuver('alpha', o1, dVa, 0);
@@ -109,31 +107,13 @@ classdef transfer
                 orbit1 = varargin{2};
                 orbit2 = varargin{3};
                 isShortWay = varargin{4};
-                r1_XYZ = orbit1.R_XYZ;
-                r2_XYZ = orbit2.R_XYZ;
+                R1_XYZ = orbit1.R_XYZ;
+                R2_XYZ = orbit2.R_XYZ;
                 mu = orbit1.Body.Mu;
 
-                r1 = norm(r1_XYZ);
-                r2 = norm(r2_XYZ);
-                
-                dTA = atan2(norm(cross(r1_XYZ, r2_XYZ)), dot(r1_XYZ, r2_XYZ));
-                c = sqrt(r1^2 + r2^2 - 2*r1*r2*cos(dTA));
-                s = (r1 + r2 + c)/2;
-                a_min = s/2;
-                p_min = (r1*r2/c)*(1-cos(dTA));
-                e_min = sqrt(1 - 2*p_min/s);
-                alpha = pi;
-                beta = 2*asin(sqrt((s-c)/s));
-                if isShortWay
-                    t_min = sqrt(a_min^3/mu)*(alpha - (beta - sin(beta)));
-                else
-                    t_min = sqrt(a_min^3/mu)*(alpha + (beta - sin(beta)));
-                end
-                
-                % use f and g functions to get velocity
-                v1_XYZ = (sqrt(mu*p_min)/(r1*r2*sin(dTA)))*(r2_XYZ - (1 - (r2/p_min)*(1 - cos(dTA)))*r1_XYZ);
+                [~, ~, t_min, V1_XYZ] = LAMBERT_MIN_E(mu, R1_XYZ, R2_XYZ, isShortWay);
 
-                o_t1 = orbit('RV', orbit1.Body, r1_XYZ, v1_XYZ);
+                o_t1 = orbit('RV', orbit1.Body, R1_XYZ, V1_XYZ);
                 o_t2 = o_t1.propagate_Time(t_min);
 
                 obj.Orbits = [orbit1, o_t1, o_t2, orbit2];
@@ -144,8 +124,27 @@ classdef transfer
                 obj.Maneuvers = [m1, m2];
                 obj.Time = t_min;
                 obj.dV = m1.dV + m2.dV;
-            elseif strcmp(varargin{1}, 'Lambert_minE')
-                error('Mode not implemented')
+            elseif strcmp(varargin{1}, 'Lambert_dt')
+                orbit1 = varargin{2};
+                orbit2 = varargin{3};
+                dt = varargin{4};
+                isShortWay = varargin{5};
+                R1_XYZ = orbit1.R_XYZ;
+                R2_XYZ = orbit2.R_XYZ;
+                mu = orbit1.Body.Mu;
+
+                [V1_XYZ, ~] = LAMBERT_DT_UNIV(mu, R1_XYZ, R2_XYZ, dt, isShortWay, 1e-6);
+                o_t1 = orbit('RV', orbit1.Body, R1_XYZ, V1_XYZ);
+                o_t2 = o_t1.propagate_Time(dt);
+
+                obj.Orbits = [orbit1, o_t1, o_t2, orbit2];
+
+                m1 = maneuver('XYZ', o_t1.V_XYZ - orbit1.V_XYZ);
+                m2 = maneuver('XYZ', orbit2.V_XYZ - o_t2.V_XYZ);
+
+                obj.Maneuvers = [m1, m2];
+                obj.Time = dt;
+                obj.dV = m1.dV + m2.dV;
             else
                 error('Invalid input mode specified')
             end
