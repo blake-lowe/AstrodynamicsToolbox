@@ -358,8 +358,12 @@ classdef orbit
                 warning('Orbit intersects body surface.')
             end
             
-            % Period      % Period
-            obj.Period = 2*pi/obj.MM;
+            % Period
+            if obj.ECC < 1
+                obj.Period = 2*pi/obj.MM;
+            else
+                obj.Period = NaN;
+            end
 
             % TP          % Time since periapsis
             obj.TP = obj.XA/obj.MM;

@@ -122,6 +122,11 @@ classdef Anomaly
             BA = tan(TA/2);
         end
 
+        function TA = MA2TA(MA, ECC, tol)
+            EA = Anomaly.MA2EA(MA, ECC, tol);
+            TA = Anomaly.EA2TA(EA, ECC);
+        end
+
     end
 end
 

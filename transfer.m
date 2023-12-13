@@ -20,11 +20,11 @@ classdef transfer
             %transfer('Lambert_dt', orbit1, orbit2, dt, isShortWay)
             o1 = varargin{2};
             mu = o1.Body.Mu;
-            if (o1.ECC ~= 0)
-                error('Initial orbit must be circular')
-            end
 
             if strcmp(varargin{1}, 'Hohmann')
+                if (o1.ECC ~= 0)
+                    error('Initial orbit must be circular')
+                end
                 r2 = varargin{3};
                 r1 = o1.R;
                 a_t = (r1 + r2)/2;
@@ -52,6 +52,9 @@ classdef transfer
             elseif strcmp(varargin{1}, 'Bi-elliptic')
                 error('Mode not implemented')
             elseif strcmp(varargin{1}, 'One-tangent')
+                if (o1.ECC ~= 0)
+                    error('Initial orbit must be circular')
+                end
                 r2 = varargin{3};
                 dTA_b = varargin{4};
                 r1 = o1.R;
@@ -133,9 +136,9 @@ classdef transfer
                 R2_XYZ = orbit2.R_XYZ;
                 mu = orbit1.Body.Mu;
 
-                [V1_XYZ, ~] = LAMBERT_DT_UNIV(mu, R1_XYZ, R2_XYZ, dt, isShortWay, 1e-6);
+                [V1_XYZ, V2_XYZ] = LAMBERT_DT_UNIV(mu, R1_XYZ, R2_XYZ, dt, isShortWay, 1e-6);
                 o_t1 = orbit('RV', orbit1.Body, R1_XYZ, V1_XYZ);
-                o_t2 = o_t1.propagate_Time(dt);
+                o_t2 = orbit('RV', orbit2.Body, R2_XYZ, V2_XYZ);
 
                 obj.Orbits = [orbit1, o_t1, o_t2, orbit2];
 
